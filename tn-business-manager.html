@@ -925,7 +925,11 @@ async function loadFromSheets() {
   if (!url) { setSyncStatus('local'); return false; }
   setSyncStatus('syncing');
   try {
-    const res = await fetch(url + '?action=load', { method: 'GET' });
+    const res = await fetch(url, {
+      method:  'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body:    JSON.stringify({ action: 'load' }),
+    });
     if (!res.ok) throw new Error('Load failed: ' + res.status);
     const result = await res.json();
     if (result.status === 'ok' && result.data) {
@@ -934,6 +938,7 @@ async function loadFromSheets() {
       console.log('Loaded from Sheets, updatedAt:', result.data.updatedAt);
       return true;
     }
+    console.warn('Sheets load: no data yet, using localStorage');
     setSyncStatus('local');
     return false;
   } catch(e) {
