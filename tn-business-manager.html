@@ -1110,20 +1110,46 @@ async function attemptLogin() {
   if (hash === stored) {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
-    // Render immediately from localStorage — no waiting
-    initApp();
-    // Then try to sync from cloud in background and re-render if newer data found
-    setSyncStatus('syncing');
-    loadFromBin().then(loaded => {
-      if (loaded) {
-        initApp(); // re-render with cloud data
-      } else {
-        setSyncStatus(getBinId() ? 'offline' : 'local');
-      }
-    });
+
+    const hasLocalData = DB.load('invoices', null) !== null;
+
+    if (hasLocalData) {
+      // Have local data — render immediately, then silently update from cloud
+      initApp();
+      setSyncStatus('syncing');
+      loadFromBin().then(loaded => {
+        if (loaded) {
+          // Cloud data loaded — re-render all panels
+          renderDashboard();
+          renderInvoices();
+          renderTransactions();
+          renderMTD();
+        } else {
+          setSyncStatus(getBinId() ? 'offline' : 'local');
+        }
+      });
+    } else {
+      // No local data — show loading, wait for cloud
+      setSyncStatus('syncing');
+      showDashboardLoading(true);
+      const loaded = await loadFromBin();
+      showDashboardLoading(false);
+      if (!loaded) setSyncStatus('local');
+      initApp();
+    }
   } else {
     document.getElementById('login-err').textContent = 'Incorrect password. Try again.';
     document.getElementById('pin-input').value = '';
+  }
+}
+
+function showDashboardLoading(on) {
+  const el = document.getElementById('dash-stats');
+  if (!el) return;
+  if (on) {
+    el.innerHTML = `<div style="grid-column:span 6;padding:40px;text-align:center;color:var(--text3);font-family:var(--mono);font-size:13px;letter-spacing:1px">
+      ⟳ Loading your data from cloud…
+    </div>`;
   }
 }
 
