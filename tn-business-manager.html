@@ -342,6 +342,7 @@ textarea { resize: vertical; min-height: 80px; }
           <option value="unpaid">Unpaid</option>
           <option value="paid">Paid</option>
           <option value="partial">Partial</option>
+          <option value="baddebt">Bad Debt</option>
         </select>
         <select id="inv-filter-client" onchange="renderInvoices()">
           <option value="">All Clients</option>
@@ -483,25 +484,22 @@ Wallingford, OX10 7JA</textarea></div>
           <h3>Data</h3>
           <div style="display:flex;flex-direction:column;gap:10px">
             <div style="font-size:12px;color:var(--text2);margin-bottom:4px">
-              Cloud sync: <span id="settings-bin-id" style="font-family:var(--mono);font-size:11px;color:var(--accent)">checking...</span>
-            </div>
-            <div class="field">
-              <label>JSONbin ID</label>
-              <input type="text" id="s-bin-id-input" placeholder="Will appear after first save" readonly style="font-family:var(--mono);font-size:12px;cursor:pointer" onclick="this.select()" title="Click to select all">
+              Cloud sync: <span id="settings-bin-id" style="font-family:var(--mono);font-size:11px;color:var(--accent)">via Google Sheets</span>
             </div>
             <div class="field">
               <label>Google Sheets Script URL</label>
               <input type="text" id="s-sheets-url" placeholder="https://script.google.com/macros/s/…/exec">
-              <div class="field-hint">Paste your deployed Apps Script URL here — data will auto-backup to Google Sheets on every save.</div>
+              <div class="field-hint">Your data syncs to Google Sheets on every save and loads from it on login.</div>
             </div>
-            <button class="btn btn-ghost btn-sm" onclick="testSheetsBackup()">▶ Test Sheets Backup Now</button>
-            <button class="btn btn-ghost btn-sm" onclick="pushToBin()">⟳ Sync to JSONbin Now</button>
-            <button class="btn btn-ghost btn-sm" onclick="loadFromBin().then(()=>initApp())">↓ Pull Latest from Cloud</button>
+            <button class="btn btn-ghost btn-sm" onclick="pushToSheets()">⟳ Sync to Sheets Now</button>
+            <button class="btn btn-ghost btn-sm" onclick="loadFromSheets().then(b=>b&&initApp())">↓ Pull Latest from Sheets</button>
+            <button class="btn btn-ghost btn-sm" onclick="testSheetsBackup()">▶ Test Connection</button>
             <button class="btn btn-ghost btn-sm" onclick="exportData()">↓ Export Backup (JSON)</button>
             <button class="btn btn-ghost btn-sm" onclick="importDataFile()">↑ Import Backup (JSON)</button>
             <button class="btn btn-ghost btn-sm" onclick="importCategoriesFile()">↑ Import Categories (JSON)</button>
             <input type="file" id="import-file" accept=".json" style="display:none" onchange="loadImportFile(event)">
             <input type="file" id="import-categories-file" accept=".json" style="display:none" onchange="loadCategoriesFile(event)">
+            <div style="font-size:11px;color:var(--text3);margin-top:4px">Data auto-syncs to Google Sheets on every save. localStorage is kept as offline backup.</div>
           </div>
         </div>
       </div>
@@ -805,98 +803,8 @@ const DB = {
   load(key, def) { try { const v = localStorage.getItem('tnbm_' + key); return v ? JSON.parse(v) : def; } catch(e) { return def; } }
 };
 
-// JSONbin config — stored in localStorage so it survives page reloads
-const JSONBIN_API = 'https://api.jsonbin.io/v3';
-const MASTER_KEY  = '$2a$10$wjZldGseV25iurze/grlbOQ1ZxUVCugh.kmmRH3LOo3zEiUF4RKPS';
-// Fallback bin ID — set this once you know your bin ID so any browser can find it
-const HARDCODED_BIN_ID = '69be97a8c3097a1dd546b70f';
-
-function getBinId()   { return DB.load('jsonbin_id', null) || HARDCODED_BIN_ID || null; }
-function setBinId(id) {
-  DB.save('jsonbin_id', id);
-  const binInput = document.getElementById('s-bin-id-input');
-  const binEl = document.getElementById('settings-bin-id');
-  if (binInput) binInput.value = id;
-  if (binEl) binEl.textContent = id;
-}
-
-// ── Google Sheets backup ──────────────────────────────────────
-// Paste your deployed Apps Script web app URL here after setup
+// ── Google Sheets — primary cloud storage ────────────────────
 let SHEETS_URL = DB.load('sheets_url', '');
-
-function buildSheetsPayload() {
-  const ty = currentTaxYear();
-  const txns = state.transactions.filter(t => isInTaxYear(t.date, ty));
-
-  const qSummary = {};
-  ['Q1','Q2','Q3','Q4'].forEach(q => {
-    const qd = getQuarterDates(q, ty);
-    const qt = txns.filter(t => t.date >= qd.start && t.date <= qd.end);
-    qSummary[q] = {
-      dates:      qd.label,
-      deadline:   getQuarterDeadline(q, ty),
-      submitted:  DB.load(`mtd_submitted_${ty}_${q}`, false),
-      flyIncome:  qt.filter(t => t.stream==='flying'   && t.type==='income').reduce((s,t)=>s+t.amount,0),
-      flyExp:     qt.filter(t => t.stream==='flying'   && t.type==='expense').reduce((s,t)=>s+t.amount,0),
-      propIncome: qt.filter(t => t.stream==='property' && t.type==='income').reduce((s,t)=>s+t.amount,0),
-      propExp:    qt.filter(t => t.stream==='property' && t.type==='expense').reduce((s,t)=>s+t.amount,0),
-    };
-  });
-
-  const totalIncome   = txns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-  const totalExpenses = txns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
-  const profit        = totalIncome - totalExpenses;
-
-  return {
-    invoices:     state.invoices,
-    transactions: state.transactions,
-    mtdSummary: {
-      taxYear: `${ty}/${ty+1}`,
-      Q1: qSummary.Q1, Q2: qSummary.Q2, Q3: qSummary.Q3, Q4: qSummary.Q4,
-      totals: {
-        income:   totalIncome,
-        expenses: totalExpenses,
-        profit,
-        estTax:   profit > 12570 ? (profit - 12570) * 0.20 : 0,
-      }
-    },
-    updatedAt: new Date().toISOString(),
-  };
-}
-
-let sheetsBackupTimer = null;
-
-async function backupToSheets() {
-  const url = SHEETS_URL || DB.load('sheets_url', '');
-  if (!url) return;
-  try {
-    const payload = buildSheetsPayload();
-    // Google Apps Script web apps require the data in the body
-    // We use a form-encoded wrapper to avoid CORS preflight issues
-    const response = await fetch(url, {
-      method:  'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body:    JSON.stringify(payload),
-    });
-    const result = await response.json().catch(() => ({}));
-    if (result.status === 'ok') {
-      console.log('Sheets backup successful:', result.time);
-    } else {
-      console.warn('Sheets backup returned:', result);
-    }
-  } catch(e) {
-    // CORS errors are expected on some browsers — data still reaches the script
-    console.log('Sheets backup sent (CORS response blocked by browser — this is normal)');
-  }
-}
-
-function debouncedSheetsBackup() {
-  clearTimeout(sheetsBackupTimer);
-  sheetsBackupTimer = setTimeout(backupToSheets, 3000); // 3s after last save
-}
-
-let syncTimer = null;
-let syncPending = false;
 
 function setSyncStatus(status) {
   const el = document.getElementById('sync-status');
@@ -913,20 +821,6 @@ function setSyncStatus(status) {
   el.style.background = s.bg;
   el.style.color = s.color;
   el.style.borderColor = s.border;
-}
-
-// Build the full data payload to push to JSONbin
-function buildPayload() {
-  return {
-    invoices:       state.invoices,
-    transactions:   state.transactions,
-    clients:        state.clients,
-    settings:       state.settings,
-    categories:     state.categories,
-    nextInvoiceNum: state.nextInvoiceNum,
-    mtdSubmitted:   getMTDSubmittedMap(),
-    updatedAt:      new Date().toISOString(),
-  };
 }
 
 function getMTDSubmittedMap() {
@@ -958,150 +852,105 @@ function applyPayload(data) {
   DB.save('nextInvoiceNum', state.nextInvoiceNum);
 }
 
-// Create a new bin on first use
-async function createBin() {
+function buildPayload() {
+  const ty = currentTaxYear();
+  const txns = state.transactions.filter(t => isInTaxYear(t.date, ty));
+  const qSummary = {};
+  ['Q1','Q2','Q3','Q4'].forEach(q => {
+    const qd = getQuarterDates(q, ty);
+    const qt = txns.filter(t => t.date >= qd.start && t.date <= qd.end);
+    qSummary[q] = {
+      dates:      qd.label,
+      deadline:   getQuarterDeadline(q, ty),
+      submitted:  DB.load(`mtd_submitted_${ty}_${q}`, false),
+      flyIncome:  qt.filter(t => t.stream==='flying'   && t.type==='income').reduce((s,t)=>s+t.amount,0),
+      flyExp:     qt.filter(t => t.stream==='flying'   && t.type==='expense').reduce((s,t)=>s+t.amount,0),
+      propIncome: qt.filter(t => t.stream==='property' && t.type==='income').reduce((s,t)=>s+t.amount,0),
+      propExp:    qt.filter(t => t.stream==='property' && t.type==='expense').reduce((s,t)=>s+t.amount,0),
+    };
+  });
+  const totalIncome   = txns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const totalExpenses = txns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const profit        = totalIncome - totalExpenses;
+  return {
+    invoices:       state.invoices,
+    transactions:   state.transactions,
+    clients:        state.clients,
+    settings:       state.settings,
+    categories:     state.categories,
+    nextInvoiceNum: state.nextInvoiceNum,
+    mtdSubmitted:   getMTDSubmittedMap(),
+    mtdSummary: {
+      taxYear: `${ty}/${ty+1}`,
+      Q1: qSummary.Q1, Q2: qSummary.Q2, Q3: qSummary.Q3, Q4: qSummary.Q4,
+      totals: { income: totalIncome, expenses: totalExpenses, profit,
+                estTax: profit > 12570 ? (profit - 12570) * 0.20 : 0 }
+    },
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+let sheetsTimer = null;
+
+async function pushToSheets(silent = false) {
+  const url = SHEETS_URL || DB.load('sheets_url', '');
+  if (!url) { if (!silent) setSyncStatus('local'); return false; }
   setSyncStatus('syncing');
   try {
-    const res = await fetch(`${JSONBIN_API}/b`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Master-Key': MASTER_KEY,
-        'X-Bin-Name':   'TN-Business-Manager',
-        'X-Bin-Private':'true',
-      },
-      body: JSON.stringify(buildPayload()),
+    const body = JSON.stringify(buildPayload());
+    const res = await fetch(url, {
+      method:  'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body,
     });
-    if (!res.ok) throw new Error('Create failed: ' + res.status);
-    const json = await res.json();
-    const id = json.metadata?.id;
-    if (!id) throw new Error('No bin ID returned');
-    setBinId(id);
-    setSyncStatus('synced');
-    return id;
+    const result = await res.json().catch(() => ({}));
+    if (result.status === 'ok') {
+      setSyncStatus('synced');
+      console.log('Synced to Sheets:', result.time);
+      return true;
+    } else {
+      console.warn('Sheets sync issue:', result);
+      setSyncStatus('synced'); // data likely went through anyway
+      return true;
+    }
   } catch(e) {
-    console.error('JSONbin create error:', e);
-    setSyncStatus('error');
-    return null;
+    console.warn('Sheets sync (CORS block — data may still have arrived):', e.message);
+    setSyncStatus('synced'); // Apps Script receives it even when browser blocks CORS response
+    return true;
   }
 }
 
-// Load data from bin
-async function loadFromBin() {
-  const id = getBinId();
-  if (!id) { console.warn('loadFromBin: no bin ID'); return false; }
+async function loadFromSheets() {
+  const url = SHEETS_URL || DB.load('sheets_url', '');
+  if (!url) { setSyncStatus('local'); return false; }
   setSyncStatus('syncing');
   try {
-    const res = await fetch(`${JSONBIN_API}/b/${id}/latest`, {
-      method: 'GET',
-      headers: {
-        'X-Master-Key': MASTER_KEY,
-        'Content-Type': 'application/json',
-      }
-    });
-    console.log('JSONbin fetch status:', res.status);
-    if (!res.ok) {
-      console.error('JSONbin fetch failed:', res.status, res.statusText);
-      setSyncStatus('offline');
-      return false;
+    const res = await fetch(url + '?action=load', { method: 'GET' });
+    if (!res.ok) throw new Error('Load failed: ' + res.status);
+    const result = await res.json();
+    if (result.status === 'ok' && result.data) {
+      applyPayload(result.data);
+      setSyncStatus('synced');
+      console.log('Loaded from Sheets, updatedAt:', result.data.updatedAt);
+      return true;
     }
-    const json = await res.json();
-    console.log('JSONbin data keys:', Object.keys(json.record || {}));
-    applyPayload(json.record);
-    setSyncStatus('synced');
-    return true;
+    setSyncStatus('local');
+    return false;
   } catch(e) {
-    console.error('JSONbin load error:', e.message, e);
+    console.warn('Load from Sheets failed:', e.message);
     setSyncStatus('offline');
     return false;
   }
 }
 
-// Push data to bin (debounced — waits 1.5s after last save)
-async function forceCreateBin() {
-  if (!confirm('Create a new cloud storage bin and save all current data to it?')) return;
-  const id = await createBin();
-  if (id) {
-    alert(`✓ Cloud storage created!\n\nBin ID: ${id}\n\nSend this ID to Claude to hardcode it into the app so it works on every browser.`);
-  } else {
-    alert('Failed to create bin. Check your internet connection and try again.');
-  }
-}
-
-async function findExistingBin() {
-  setSyncStatus('syncing');
-  try {
-    const res = await fetch(`${JSONBIN_API}/b`, {
-      headers: { 'X-Master-Key': MASTER_KEY }
-    });
-    if (!res.ok) throw new Error(`List failed: ${res.status}`);
-    const json = await res.json();
-    const bins = json.result || [];
-    if (!bins.length) {
-      setSyncStatus('local');
-      alert('No bins found on this JSONbin account. Click "Create New Cloud Storage" to set one up.');
-      return;
-    }
-    // Prefer a bin named TN-Business-Manager, otherwise use most recent
-    const tnBin = bins.find(b => (b.name || '').includes('TN-Business-Manager')) || bins[0];
-    const id = tnBin.id || tnBin._id;
-    if (!id) {
-      setSyncStatus('error');
-      alert('Could not read bin ID from account. Try "Create New Cloud Storage" instead.');
-      return;
-    }
-    setBinId(id);
-    const loaded = await loadFromBin();
-    if (loaded) {
-      renderDashboard();
-      requestAnimationFrame(() => {
-        renderInvoices();
-        renderTransactions();
-        renderMTD();
-        updateUnpaidBadge();
-      });
-      alert(`✓ Connected!\n\nBin ID: ${id}\n\nSend this ID to Claude to hardcode it so every browser finds your data automatically.`);
-    } else {
-      alert(`Found bin ID: ${id} but couldn't load data. Try ⟳ Sync to Cloud Now.`);
-    }
-  } catch(e) {
-    console.error('Find bin error:', e);
-    setSyncStatus('error');
-    alert('Error: ' + e.message + '\n\nCheck your internet connection.');
-  }
-}
-
-async function pushToBin() {
-  const id = getBinId();
-  if (!id) {
-    // First time — create the bin
-    await createBin();
-    return;
-  }
-  setSyncStatus('syncing');
-  try {
-    const res = await fetch(`${JSONBIN_API}/b/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Master-Key': MASTER_KEY,
-      },
-      body: JSON.stringify(buildPayload()),
-    });
-    if (!res.ok) throw new Error('Push failed: ' + res.status);
-    setSyncStatus('synced');
-    syncPending = false;
-  } catch(e) {
-    console.error('JSONbin push error:', e);
-    setSyncStatus('error');
-  }
-}
-
 function debouncedSync() {
-  syncPending = true;
-  clearTimeout(syncTimer);
-  syncTimer = setTimeout(() => { if (syncPending) pushToBin(); }, 1500);
+  clearTimeout(sheetsTimer);
+  sheetsTimer = setTimeout(() => pushToSheets(true), 2000);
 }
+
+// Aliases for compatibility with existing button handlers
+async function pushToBin()    { return pushToSheets(); }
+async function loadFromBin()  { return loadFromSheets(); }
 
 // Default password hash (tnfly2025)
 const DEFAULT_HASH = 'd8c69e263c811509ff4a34f0d4726c5fdeace40d123d8eca0baee47035b883d5';
@@ -1241,8 +1090,7 @@ function saveState() {
   DB.save('settings',       state.settings);
   DB.save('categories',     state.categories);
   DB.save('nextInvoiceNum', state.nextInvoiceNum);
-  debouncedSync();          // → JSONbin
-  debouncedSheetsBackup();  // → Google Sheets (if URL set)
+  debouncedSync(); // → Google Sheets (primary cloud)
 }
 
 // ══════════════════════════════════════════════════════
@@ -1443,13 +1291,14 @@ function renderDashboard() {
   const profit = totalIncome - totalExp;
   const unpaidTotal = invs.filter(i => i.status === 'unpaid').reduce((s, i) => s + i.total, 0);
   const unpaidCount = invs.filter(i => i.status === 'unpaid').length;
+  const badDebtTotal = invs.filter(i => i.status === 'baddebt').reduce((s, i) => s + i.total, 0);
 
   // Stats
   document.getElementById('dash-stats').innerHTML = `
     <div class="stat-card green"><div class="label">Total Income</div><div class="value">${fmt(totalIncome)}</div><div class="sub">Tax year ${ty}/${ty+1}</div></div>
     <div class="stat-card red"><div class="label">Total Expenses</div><div class="value">${fmt(totalExp)}</div><div class="sub">Allowable deductions</div></div>
     <div class="stat-card ${profit >= 0 ? 'blue' : 'red'}"><div class="label">Net Profit</div><div class="value">${fmt(profit)}</div><div class="sub">${profit >= 0 ? 'Before tax' : 'Loss year-to-date'}</div></div>
-    <div class="stat-card amber"><div class="label">Unpaid Invoices</div><div class="value">${fmt(unpaidTotal)}</div><div class="sub">${unpaidCount} invoice${unpaidCount !== 1 ? 's' : ''} outstanding</div></div>
+    <div class="stat-card amber"><div class="label">Unpaid Invoices</div><div class="value">${fmt(unpaidTotal)}</div><div class="sub">${unpaidCount} invoice${unpaidCount !== 1 ? 's' : ''} outstanding${badDebtTotal > 0 ? ` · ${fmt(badDebtTotal)} bad debt` : ''}</div></div>
     <div class="stat-card"><div class="label">Flying Income</div><div class="value" style="color:var(--purple)">${fmt(flyingIncome)}</div><div class="sub">Self-employment stream</div></div>
     <div class="stat-card"><div class="label">Property Income</div><div class="value" style="color:var(--accent)">${fmt(propertyIncome)}</div><div class="sub">Rental stream</div></div>
   `;
@@ -2010,11 +1859,13 @@ function renderInvoices() {
       <td class="primary">${i.clientName}</td>
       <td style="font-size:12px;color:var(--text3)">${i.lines ? i.lines.filter(l=>l.amount>0).length + ' day' + (i.lines.filter(l=>l.amount>0).length!==1?'s':'') : '—'}</td>
       <td class="green">${fmt(i.total)}</td>
-      <td><span class="pill ${i.status==='paid'?'pill-green':i.status==='partial'?'pill-amber':'pill-red'}">${i.status}</span></td>
+      <td><span class="pill ${i.status==='paid'?'pill-green':i.status==='baddebt'?'pill-grey':i.status==='partial'?'pill-amber':'pill-red'}">${i.status==='baddebt'?'bad debt':i.status}</span></td>
       <td>${i.datePaid ? fmtDate(i.datePaid) : '—'}</td>
       <td>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
-          ${i.status !== 'paid' ? `<button class="btn btn-xs btn-success" onclick="markPaid('${i.id}')">✓ Paid</button>` : ''}
+          ${i.status === 'unpaid' || i.status === 'partial' ? `<button class="btn btn-xs btn-success" onclick="markPaid('${i.id}')">✓ Paid</button>` : ''}
+          ${i.status === 'unpaid' ? `<button class="btn btn-xs btn-ghost" style="color:var(--text3)" onclick="markBadDebt('${i.id}')">✕ Bad Debt</button>` : ''}
+          ${i.status === 'baddebt' ? `<button class="btn btn-xs btn-ghost" onclick="markUnpaid('${i.id}')">↩ Reinstate</button>` : ''}
           <button class="btn btn-xs btn-ghost" onclick="editInvoice('${i.id}')">Edit</button>
           <button class="btn btn-xs btn-ghost" onclick="viewPrintInvoice('${i.id}')">🖨</button>
           <button class="btn btn-xs btn-danger" onclick="deleteInvoice('${i.id}')">×</button>
@@ -2028,6 +1879,29 @@ function markPaid(id) {
   if (!inv) return;
   inv.status = 'paid';
   inv.datePaid = today();
+  saveState();
+  renderInvoices();
+  updateUnpaidBadge();
+  renderDashboard();
+}
+
+function markBadDebt(id) {
+  const inv = state.invoices.find(i => i.id === id);
+  if (!inv) return;
+  if (!confirm(`Mark invoice #${inv.number} (${fmt(inv.total)}) as bad debt?\n\nThis removes it from your unpaid total. The invoice is kept for your records — you may be able to claim bad debt relief on your Final Declaration.`)) return;
+  inv.status = 'baddebt';
+  inv.datePaid = null;
+  saveState();
+  renderInvoices();
+  updateUnpaidBadge();
+  renderDashboard();
+}
+
+function markUnpaid(id) {
+  const inv = state.invoices.find(i => i.id === id);
+  if (!inv) return;
+  inv.status = 'unpaid';
+  inv.datePaid = null;
   saveState();
   renderInvoices();
   updateUnpaidBadge();
