@@ -668,7 +668,7 @@ const DB = {
 };
 
 // Default password hash (tnfly2025)
-const DEFAULT_HASH = '7b6b2cdf2e2a0b84f3c1e9a1a4f8b2e6d5c3a1b9f7e4d2c0a8b6f4e2d0c8a6b4';
+const DEFAULT_HASH = 'd8c69e263c811509ff4a34f0d4726c5fdeace40d123d8eca0baee47035b883d5';
 
 async function sha256(str) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
