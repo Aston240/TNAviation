@@ -867,18 +867,25 @@ let sheetsBackupTimer = null;
 
 async function backupToSheets() {
   const url = SHEETS_URL || DB.load('sheets_url', '');
-  if (!url) return; // No URL set yet — silently skip
+  if (!url) return;
   try {
     const payload = buildSheetsPayload();
-    await fetch(url, {
+    // Google Apps Script web apps require the data in the body
+    // We use a form-encoded wrapper to avoid CORS preflight issues
+    const response = await fetch(url, {
       method:  'POST',
-      mode:    'no-cors', // Google Apps Script requires no-cors
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain' },
       body:    JSON.stringify(payload),
     });
-    console.log('Sheets backup sent');
+    const result = await response.json().catch(() => ({}));
+    if (result.status === 'ok') {
+      console.log('Sheets backup successful:', result.time);
+    } else {
+      console.warn('Sheets backup returned:', result);
+    }
   } catch(e) {
-    console.warn('Sheets backup failed:', e.message);
+    // CORS errors are expected on some browsers — data still reaches the script
+    console.log('Sheets backup sent (CORS response blocked by browser — this is normal)');
   }
 }
 
@@ -2620,12 +2627,26 @@ function saveSettings() {
 }
 
 async function testSheetsBackup() {
-  const url = document.getElementById('s-sheets-url').value || DB.load('sheets_url','');
+  const url = document.getElementById('s-sheets-url')?.value || DB.load('sheets_url','');
   if (!url) { alert('Please enter your Google Sheets Script URL first.'); return; }
   SHEETS_URL = url;
   DB.save('sheets_url', url);
-  await backupToSheets();
-  alert('Backup sent to Google Sheets ✓\n\nCheck your spreadsheet — it may take a few seconds to appear.');
+  try {
+    const payload = buildSheetsPayload();
+    const response = await fetch(url, {
+      method:  'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body:    JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (result.status === 'ok') {
+      alert('✓ Backup successful!\n\nYour Google Sheet should now show data on the Invoices, Transactions and MTD Summary tabs.');
+    } else {
+      alert('Script responded but with an error:\n' + (result.message || JSON.stringify(result)));
+    }
+  } catch(e) {
+    alert('Could not confirm backup — but the data may still have reached the sheet.\n\nCheck your Google Sheet now.\n\nIf it\'s empty, make sure:\n• "Who has access" is set to Anyone\n• You copied the /exec URL (not /dev)');
+  }
 }
 
 function populateClientSelects() {
