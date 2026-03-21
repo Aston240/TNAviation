@@ -485,19 +485,22 @@ Wallingford, OX10 7JA</textarea></div>
               Cloud sync: <span id="settings-bin-id" style="font-family:var(--mono);font-size:11px;color:var(--accent)">checking...</span>
             </div>
             <div class="field">
-              <label>JSONbin ID (copy this — needed if you switch browsers)</label>
+              <label>JSONbin ID</label>
               <input type="text" id="s-bin-id-input" placeholder="Will appear after first save" readonly style="font-family:var(--mono);font-size:12px;cursor:pointer" onclick="this.select()" title="Click to select all">
             </div>
-            <button class="btn btn-ghost btn-sm" onclick="pushToBin()">⟳ Sync to Cloud Now</button>
-            <button class="btn btn-ghost btn-sm" onclick="findExistingBin()">🔍 Find My Existing Bin</button>
-            <button class="btn btn-ghost btn-sm" onclick="forceCreateBin()">☁ Create New Cloud Storage</button>
+            <div class="field">
+              <label>Google Sheets Script URL</label>
+              <input type="text" id="s-sheets-url" placeholder="https://script.google.com/macros/s/…/exec">
+              <div class="field-hint">Paste your deployed Apps Script URL here — data will auto-backup to Google Sheets on every save.</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="testSheetsBackup()">▶ Test Sheets Backup Now</button>
+            <button class="btn btn-ghost btn-sm" onclick="pushToBin()">⟳ Sync to JSONbin Now</button>
             <button class="btn btn-ghost btn-sm" onclick="loadFromBin().then(()=>initApp())">↓ Pull Latest from Cloud</button>
             <button class="btn btn-ghost btn-sm" onclick="exportData()">↓ Export Backup (JSON)</button>
             <button class="btn btn-ghost btn-sm" onclick="importDataFile()">↑ Import Backup (JSON)</button>
             <button class="btn btn-ghost btn-sm" onclick="importCategoriesFile()">↑ Import Categories (JSON)</button>
             <input type="file" id="import-file" accept=".json" style="display:none" onchange="loadImportFile(event)">
             <input type="file" id="import-categories-file" accept=".json" style="display:none" onchange="loadCategoriesFile(event)">
-            <div style="font-size:11px;color:var(--text3);margin-top:4px">Data auto-syncs to JSONbin cloud on every save. Copy your JSONbin ID above and keep it safe — paste it into the HTML file's HARDCODED_BIN_ID if you ever lose it.</div>
           </div>
         </div>
       </div>
@@ -816,6 +819,74 @@ function setBinId(id) {
   if (binEl) binEl.textContent = id;
 }
 
+// ── Google Sheets backup ──────────────────────────────────────
+// Paste your deployed Apps Script web app URL here after setup
+let SHEETS_URL = DB.load('sheets_url', '');
+
+function buildSheetsPayload() {
+  const ty = currentTaxYear();
+  const txns = state.transactions.filter(t => isInTaxYear(t.date, ty));
+
+  const qSummary = {};
+  ['Q1','Q2','Q3','Q4'].forEach(q => {
+    const qd = getQuarterDates(q, ty);
+    const qt = txns.filter(t => t.date >= qd.start && t.date <= qd.end);
+    qSummary[q] = {
+      dates:      qd.label,
+      deadline:   getQuarterDeadline(q, ty),
+      submitted:  DB.load(`mtd_submitted_${ty}_${q}`, false),
+      flyIncome:  qt.filter(t => t.stream==='flying'   && t.type==='income').reduce((s,t)=>s+t.amount,0),
+      flyExp:     qt.filter(t => t.stream==='flying'   && t.type==='expense').reduce((s,t)=>s+t.amount,0),
+      propIncome: qt.filter(t => t.stream==='property' && t.type==='income').reduce((s,t)=>s+t.amount,0),
+      propExp:    qt.filter(t => t.stream==='property' && t.type==='expense').reduce((s,t)=>s+t.amount,0),
+    };
+  });
+
+  const totalIncome   = txns.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const totalExpenses = txns.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const profit        = totalIncome - totalExpenses;
+
+  return {
+    invoices:     state.invoices,
+    transactions: state.transactions,
+    mtdSummary: {
+      taxYear: `${ty}/${ty+1}`,
+      Q1: qSummary.Q1, Q2: qSummary.Q2, Q3: qSummary.Q3, Q4: qSummary.Q4,
+      totals: {
+        income:   totalIncome,
+        expenses: totalExpenses,
+        profit,
+        estTax:   profit > 12570 ? (profit - 12570) * 0.20 : 0,
+      }
+    },
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+let sheetsBackupTimer = null;
+
+async function backupToSheets() {
+  const url = SHEETS_URL || DB.load('sheets_url', '');
+  if (!url) return; // No URL set yet — silently skip
+  try {
+    const payload = buildSheetsPayload();
+    await fetch(url, {
+      method:  'POST',
+      mode:    'no-cors', // Google Apps Script requires no-cors
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    });
+    console.log('Sheets backup sent');
+  } catch(e) {
+    console.warn('Sheets backup failed:', e.message);
+  }
+}
+
+function debouncedSheetsBackup() {
+  clearTimeout(sheetsBackupTimer);
+  sheetsBackupTimer = setTimeout(backupToSheets, 3000); // 3s after last save
+}
+
 let syncTimer = null;
 let syncPending = false;
 
@@ -1024,17 +1095,6 @@ function debouncedSync() {
   syncTimer = setTimeout(() => { if (syncPending) pushToBin(); }, 1500);
 }
 
-function saveState() {
-  // Always save to localStorage first (instant, offline-safe)
-  DB.save('invoices',       state.invoices);
-  DB.save('transactions',   state.transactions);
-  DB.save('clients',        state.clients);
-  DB.save('settings',       state.settings);
-  DB.save('nextInvoiceNum', state.nextInvoiceNum);
-  // Then sync to cloud (debounced)
-  debouncedSync();
-}
-
 // Default password hash (tnfly2025)
 const DEFAULT_HASH = 'd8c69e263c811509ff4a34f0d4726c5fdeace40d123d8eca0baee47035b883d5';
 
@@ -1167,13 +1227,14 @@ let state = {
 };
 
 function saveState() {
-  DB.save('invoices', state.invoices);
-  DB.save('transactions', state.transactions);
-  DB.save('clients', state.clients);
-  DB.save('settings', state.settings);
-  DB.save('categories', state.categories);
+  DB.save('invoices',       state.invoices);
+  DB.save('transactions',   state.transactions);
+  DB.save('clients',        state.clients);
+  DB.save('settings',       state.settings);
+  DB.save('categories',     state.categories);
   DB.save('nextInvoiceNum', state.nextInvoiceNum);
-  debouncedSync();
+  debouncedSync();          // → JSONbin
+  debouncedSheetsBackup();  // → Google Sheets (if URL set)
 }
 
 // ══════════════════════════════════════════════════════
@@ -2530,6 +2591,9 @@ function loadSettings() {
   set('s-accno',     s.accno);
   set('s-sort',      s.sort);
   set('s-rate-full', s.rateFull);
+  // Load sheets URL
+  const savedUrl = DB.load('sheets_url', '');
+  if (savedUrl) { SHEETS_URL = savedUrl; set('s-sheets-url', savedUrl); }
 }
 
 function saveSettings() {
@@ -2548,8 +2612,20 @@ function saveSettings() {
     sort:     get('s-sort'),
     rateFull: get('s-rate-full'),
   };
+  // Save sheets URL separately in localStorage so it persists
+  const sheetsUrl = get('s-sheets-url');
+  if (sheetsUrl) { SHEETS_URL = sheetsUrl; DB.save('sheets_url', sheetsUrl); }
   saveState();
   alert('Settings saved ✓');
+}
+
+async function testSheetsBackup() {
+  const url = document.getElementById('s-sheets-url').value || DB.load('sheets_url','');
+  if (!url) { alert('Please enter your Google Sheets Script URL first.'); return; }
+  SHEETS_URL = url;
+  DB.save('sheets_url', url);
+  await backupToSheets();
+  alert('Backup sent to Google Sheets ✓\n\nCheck your spreadsheet — it may take a few seconds to appear.');
 }
 
 function populateClientSelects() {
