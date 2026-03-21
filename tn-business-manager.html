@@ -989,11 +989,17 @@ async function attemptLogin() {
   if (hash === stored) {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
-    setSyncStatus('syncing');
-    // Try to load latest data from cloud, fall back to localStorage
-    const loaded = await loadFromBin();
-    if (!loaded) setSyncStatus(getBinId() ? 'offline' : 'local');
+    // Render immediately from localStorage — no waiting
     initApp();
+    // Then try to sync from cloud in background and re-render if newer data found
+    setSyncStatus('syncing');
+    loadFromBin().then(loaded => {
+      if (loaded) {
+        initApp(); // re-render with cloud data
+      } else {
+        setSyncStatus(getBinId() ? 'offline' : 'local');
+      }
+    });
   } else {
     document.getElementById('login-err').textContent = 'Incorrect password. Try again.';
     document.getElementById('pin-input').value = '';
@@ -1098,10 +1104,18 @@ function getQuarterDates(q, taxYear) {
   return map[q];
 }
 
+function parseLocalDate(dateStr) {
+  // Parse YYYY-MM-DD as local date, not UTC — avoids timezone shift issues
+  if (!dateStr) return new Date(0);
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function isInTaxYear(dateStr, taxYear) {
-  const d = new Date(dateStr);
-  const start = new Date(`${taxYear}-04-06`);
-  const end = new Date(`${taxYear + 1}-04-05`);
+  if (!dateStr) return false;
+  const d     = parseLocalDate(dateStr);
+  const start = new Date(taxYear,     3, 6);  // April 6
+  const end   = new Date(taxYear + 1, 3, 5);  // April 5 next year
   return d >= start && d <= end;
 }
 
@@ -1112,9 +1126,9 @@ function currentTaxYear() {
 }
 
 function fmt(n) { return '£' + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
-function fmtDate(d) { if (!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
+function fmtDate(d) { if (!d) return '—'; const dt = parseLocalDate(d); return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
 function today() { return new Date().toISOString().split('T')[0]; }
-function daysUntil(dateStr) { return Math.round((new Date(dateStr) - new Date()) / 86400000); }
+function daysUntil(dateStr) { return Math.round((parseLocalDate(dateStr) - new Date()) / 86400000); }
 
 // ══════════════════════════════════════════════════════
 // DASHBOARD
@@ -1172,8 +1186,8 @@ function renderDashboard() {
     const dl = getQuarterDeadline(q, ty);
     const days = daysUntil(dl);
     const submitted = DB.load(`mtd_submitted_${ty}_${q}`, false);
-    const isCurrent = new Date() >= new Date(qd.start) && new Date() <= new Date(qd.end);
-    const isPast = new Date() > new Date(qd.end);
+    const isCurrent = new Date() >= parseLocalDate(qd.start) && new Date() <= parseLocalDate(qd.end);
+    const isPast = new Date() > parseLocalDate(qd.end);
     let cls = '';
     if (submitted) cls = 'submitted';
     else if (isCurrent) cls = 'current';
