@@ -7,24 +7,24 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0d0f14;
-  --surface: #13161e;
-  --surface2: #1a1e28;
-  --surface3: #222736;
-  --border: #2a2f3f;
-  --border2: #353c52;
-  --text: #e8eaf0;
-  --text2: #8b90a0;
-  --text3: #555c70;
-  --accent: #4f8ef7;
-  --accent2: #3a6fd4;
-  --green: #3ecf8e;
-  --green2: #2a9966;
-  --red: #f7645a;
-  --red2: #c44840;
-  --amber: #f0a429;
-  --amber2: #c07d15;
-  --purple: #a78bfa;
+  --bg: #f0f2f5;
+  --surface: #ffffff;
+  --surface2: #f5f7fa;
+  --surface3: #eaecf0;
+  --border: #dde1e8;
+  --border2: #c8cdd8;
+  --text: #0f1117;
+  --text2: #3a3f4f;
+  --text3: #6b7280;
+  --accent: #2563eb;
+  --accent2: #1d4ed8;
+  --green: #059669;
+  --green2: #047857;
+  --red: #dc2626;
+  --red2: #b91c1c;
+  --amber: #d97706;
+  --amber2: #b45309;
+  --purple: #7c3aed;
   --mono: 'Space Mono', monospace;
   --sans: 'DM Sans', sans-serif;
 }
@@ -67,7 +67,7 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .topbar {
   background: var(--surface); border-bottom: 1px solid var(--border);
   padding: 0 24px; height: 52px; display: flex; align-items: center; gap: 16px;
-  flex-shrink: 0;
+  flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 .topbar .brand { font-family: var(--mono); font-size: 11px; color: var(--text3); letter-spacing: 3px; text-transform: uppercase; }
 .topbar .brand span { color: var(--accent); }
@@ -146,12 +146,12 @@ tbody td.amber { color: var(--amber); }
 
 /* ── BADGES ── */
 .pill { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 500; font-family: var(--mono); white-space: nowrap; }
-.pill-green { background: #1a3d2e; color: var(--green); }
-.pill-red { background: #3d1a1a; color: var(--red); }
-.pill-amber { background: #3d2d0a; color: var(--amber); }
-.pill-blue { background: #1a2a4a; color: var(--accent); }
-.pill-purple { background: #2a1f4a; color: var(--purple); }
-.pill-grey { background: var(--surface3); color: var(--text3); }
+.pill-green { background: #d1fae5; color: #065f46; }
+.pill-red { background: #fee2e2; color: #991b1b; }
+.pill-amber { background: #fef3c7; color: #92400e; }
+.pill-blue { background: #dbeafe; color: #1e40af; }
+.pill-purple { background: #ede9fe; color: #5b21b6; }
+.pill-grey { background: #f3f4f6; color: #4b5563; }
 
 /* ── MODAL ── */
 .modal-overlay { display: none; position: fixed; inset: 0; background: #00000090; z-index: 100; align-items: center; justify-content: center; padding: 20px; }
@@ -249,9 +249,9 @@ textarea { resize: vertical; min-height: 80px; }
 
 /* ── ALERTS ── */
 .alert { border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 13px; display: flex; align-items: flex-start; gap: 10px; }
-.alert-amber { background: #2d1f0a; border: 1px solid var(--amber2); color: var(--amber); }
-.alert-green { background: #0a2d1f; border: 1px solid var(--green2); color: var(--green); }
-.alert-blue { background: #0a1a3d; border: 1px solid var(--accent2); color: var(--accent); }
+.alert-amber { background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; }
+.alert-green { background: #ecfdf5; border: 1px solid #6ee7b7; color: #065f46; }
+.alert-blue { background: #eff6ff; border: 1px solid #93c5fd; color: #1e40af; }
 
 /* ── SCROLLBAR ── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -615,14 +615,37 @@ Wallingford, OX10 7JA</textarea></div>
 <div class="modal-overlay" id="modal-import">
   <div class="modal">
     <div class="modal-header">
-      <h3>Import Monzo CSV</h3>
+      <h3>Import Bank CSV</h3>
       <button class="close-modal" onclick="closeModal('modal-import')">×</button>
     </div>
     <div class="modal-body">
       <div class="alert alert-blue" style="margin-bottom:16px">
-        Export your Monzo transactions as CSV (Account → Export → CSV). Rows will be imported as transactions for you to categorise.
+        Export transactions as CSV from your bank (Monzo: Account → Export → CSV. Barclays: Online Banking → Statements → Download CSV). Then import here.
       </div>
-      <div class="field"><label>Select CSV File</label><input type="file" id="csv-file" accept=".csv"></div>
+      <div class="form-grid" style="margin-bottom:16px">
+        <div class="field">
+          <label>Bank / Source</label>
+          <select id="csv-bank-source">
+            <option value="Monzo">Monzo</option>
+            <option value="Barclays">Barclays</option>
+            <option value="Barclays Business">Barclays Business</option>
+            <option value="HSBC">HSBC</option>
+            <option value="Lloyds">Lloyds</option>
+            <option value="NatWest">NatWest</option>
+            <option value="Starling">Starling</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Default Stream</label>
+          <select id="csv-default-stream">
+            <option value="flying">Flying (Self-Employment)</option>
+            <option value="property">Property (Rental)</option>
+            <option value="personal">Personal / Non-deductible</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:16px"><label>Select CSV File</label><input type="file" id="csv-file" accept=".csv"></div>
       <div id="csv-preview" style="margin-top:16px"></div>
     </div>
     <div class="modal-footer">
@@ -1603,6 +1626,7 @@ document.getElementById('csv-file').addEventListener('change', function() {
     const rows = e.target.result.split('\n').map(r => r.split(',').map(c => c.replace(/^"|"$/g, '').trim()));
     if (rows.length < 2) return;
     const headers = rows[0];
+    state.csvHeaders = headers;
     state.csvRows = rows.slice(1).filter(r => r.length > 1 && r.some(c => c));
     const preview = state.csvRows.slice(0, 5);
     document.getElementById('csv-preview').innerHTML = `
@@ -1615,33 +1639,105 @@ document.getElementById('csv-file').addEventListener('change', function() {
   reader.readAsText(file);
 });
 
+function parseCSVDate(dateStr) {
+  if (!dateStr) return today();
+  // dd/mm/yyyy
+  if (dateStr.includes('/')) {
+    const p = dateStr.split('/');
+    if (p.length === 3) return `${p[2].slice(0,4)}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+  }
+  // yyyy-mm-dd already ISO
+  if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) return dateStr.slice(0, 10);
+  // dd-mm-yyyy
+  if (/^\d{2}-\d{2}-\d{4}/.test(dateStr)) {
+    const p = dateStr.split('-');
+    return `${p[2]}-${p[1]}-${p[0]}`;
+  }
+  return today();
+}
+
+function parseRow(row, headers, bank) {
+  // Try to find date, description, amount columns by header name
+  const h = headers.map(x => (x||'').toLowerCase().trim());
+  const idx = name => { const i = h.findIndex(x => x.includes(name)); return i >= 0 ? i : -1; };
+
+  let date = '', name = '', amount = 0;
+
+  if (bank === 'Monzo') {
+    // Monzo: Transaction ID, Date, Time, Type, Name, Emoji, Category, Amount, Currency...
+    date = parseCSVDate(row[1] || '');
+    name = row[4] || row[13] || '';
+    amount = parseFloat(row[7]) || 0;
+  } else if (bank === 'Barclays' || bank === 'Barclays Business') {
+    // Barclays: Number, Date, Account, Amount, Subcategory, Memo
+    const dateIdx = idx('date') >= 0 ? idx('date') : 1;
+    const amtIdx = idx('amount') >= 0 ? idx('amount') : 3;
+    const memoIdx = idx('memo') >= 0 ? idx('memo') : idx('description') >= 0 ? idx('description') : 5;
+    date = parseCSVDate(row[dateIdx] || '');
+    name = row[memoIdx] || row[4] || '';
+    amount = parseFloat((row[amtIdx]||'').replace(/[£,]/g,'')) || 0;
+  } else if (bank === 'Starling') {
+    // Starling: Date, Counter Party, Reference, Type, Amount (GBP), Balance (GBP), Spending Category, Notes
+    date = parseCSVDate(row[0] || '');
+    name = row[1] || row[2] || '';
+    amount = parseFloat((row[4]||'').replace(/[£,]/g,'')) || 0;
+  } else if (bank === 'HSBC') {
+    // HSBC: Date, Description, Amount, Balance
+    date = parseCSVDate(row[0] || '');
+    name = row[1] || '';
+    amount = parseFloat((row[2]||'').replace(/[£,]/g,'')) || 0;
+  } else if (bank === 'Lloyds') {
+    // Lloyds: Transaction Date, Transaction Type, Sort Code, Account Number, Transaction Description, Debit Amount, Credit Amount, Balance
+    date = parseCSVDate(row[0] || '');
+    name = row[4] || '';
+    const debit = parseFloat((row[5]||'').replace(/[£,]/g,'')) || 0;
+    const credit = parseFloat((row[6]||'').replace(/[£,]/g,'')) || 0;
+    amount = credit > 0 ? credit : -debit;
+  } else if (bank === 'NatWest') {
+    // NatWest: Date, Type, Description, Value, Balance, Account Name, Account Number
+    date = parseCSVDate(row[0] || '');
+    name = row[2] || '';
+    amount = parseFloat((row[3]||'').replace(/[£,]/g,'')) || 0;
+  } else {
+    // Generic fallback — try common column names
+    const dateIdx = idx('date') >= 0 ? idx('date') : 0;
+    const amtIdx = idx('amount') >= 0 ? idx('amount') : idx('value') >= 0 ? idx('value') : 3;
+    const descIdx = idx('description') >= 0 ? idx('description') : idx('memo') >= 0 ? idx('memo') : idx('name') >= 0 ? idx('name') : 1;
+    date = parseCSVDate(row[dateIdx] || '');
+    name = row[descIdx] || '';
+    amount = parseFloat((row[amtIdx]||'').replace(/[£,]/g,'')) || 0;
+  }
+
+  return { date, name: name.trim(), amount };
+}
+
 function processCSVImport() {
   if (!state.csvRows.length) { alert('No CSV data loaded.'); return; }
-  let imported = 0;
+  const bank = document.getElementById('csv-bank-source').value;
+  const defaultStream = document.getElementById('csv-default-stream').value;
+
+  // Re-read headers
+  const fileInput = document.getElementById('csv-file');
+  // We already have state.csvRows — parse using bank format
+  // Need headers — store them when file loads
+  const headers = state.csvHeaders || [];
+
+  let imported = 0, skipped = 0;
   state.csvRows.forEach(row => {
-    // Monzo CSV format: Transaction ID, Date, Time, Type, Name, Emoji, Category, Amount, Currency, Local amount, Local currency, Notes and #tags, Address, Description, Receipt, Category split
-    const date = row[1] || '';
-    const name = row[4] || row[13] || '';
-    const amountRaw = parseFloat(row[7]) || 0;
-    if (!date || !amountRaw) return;
-    // Convert Monzo date format (dd/mm/yyyy) to ISO
-    let isoDate = date;
-    if (date.includes('/')) {
-      const parts = date.split('/');
-      if (parts.length === 3) isoDate = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
-    }
+    const { date, name, amount } = parseRow(row, headers, bank);
+    if (!date || !name || !amount) { skipped++; return; }
     const txn = {
       id: Date.now().toString() + Math.random(),
-      date: isoDate,
-      type: amountRaw > 0 ? 'income' : 'expense',
+      date,
+      type: amount > 0 ? 'income' : 'expense',
       payee: name,
-      amount: Math.abs(amountRaw),
-      stream: 'flying',
+      amount: Math.abs(amount),
+      stream: defaultStream,
       hmrcCat: '',
-      notes: row[11] || '',
+      notes: `Imported from ${bank}`,
       receipt: 'bank',
       invoiceId: '',
-      quarter: getTaxQuarter(isoDate),
+      quarter: getTaxQuarter(date),
     };
     state.transactions.push(txn);
     imported++;
@@ -1650,7 +1746,7 @@ function processCSVImport() {
   renderTransactions();
   renderDashboard();
   closeModal('modal-import');
-  alert(`Imported ${imported} transactions. Please review and categorise each one in the Transactions tab.`);
+  alert(`✓ Imported ${imported} transactions from ${bank}.${skipped > 0 ? ` ${skipped} rows skipped (no date/amount).` : ''}\n\nPlease review each one in Transactions and set the correct Stream and HMRC category.`);
 }
 
 // ══════════════════════════════════════════════════════
