@@ -372,12 +372,12 @@ textarea { resize: vertical; min-height: 80px; }
         </div>
       </div>
       <div class="filter-bar">
-        <input type="text" placeholder="Search payee, description..." id="txn-search" oninput="renderTransactions()">
+        <input type="text" placeholder="Search payee, category..." id="txn-search" oninput="renderTransactions()">
         <select id="txn-filter-stream" onchange="renderTransactions()">
           <option value="">All Streams</option>
           <option value="flying">Flying</option>
           <option value="property">Property</option>
-          <option value="personal">Personal / Non-deductible</option>
+          <option value="personal">Personal</option>
         </select>
         <select id="txn-filter-type" onchange="renderTransactions()">
           <option value="">Income & Expenses</option>
@@ -397,7 +397,7 @@ textarea { resize: vertical; min-height: 80px; }
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>Date</th><th>Payee / Description</th><th>Stream</th><th>HMRC Category</th><th>Income</th><th>Expense</th><th>Quarter</th><th>Actions</th>
+            <th>Date</th><th>Payee</th><th>Category / HMRC</th><th>Income</th><th>Expense</th><th>Quarter</th><th>Actions</th>
           </tr></thead>
           <tbody id="txn-table-body"></tbody>
         </table>
@@ -453,13 +453,22 @@ Wallingford, OX10 7JA</textarea></div>
         </div>
         <div class="settings-section" style="grid-column: span 2">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <h3 style="margin-bottom:0">Transaction Categories</h3>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-ghost btn-sm" onclick="resetCategoriesToDefault()">↺ Reset to defaults</button>
+              <button class="btn btn-ghost btn-sm" onclick="openAddCategory()">+ Add Category</button>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:12px">Each category has payee keywords — when a CSV import matches, it auto-categorises. Stream and HMRC mapping are assigned automatically.</div>
+          <div id="category-list"></div>
+        </div>
+        <div class="settings-section" style="grid-column: span 2">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
             <h3 style="margin-bottom:0">Client Register</h3>
             <button class="btn btn-ghost btn-sm" onclick="openAddClient()">+ Add Client</button>
           </div>
           <div id="client-list"></div>
         </div>
-        <div class="settings-section">
-          <h3>Security</h3>
           <div style="display:flex;flex-direction:column;gap:12px">
             <div class="field"><label>New PIN / Password</label><input type="password" id="s-pin-new" placeholder="Enter new password"></div>
             <div class="field"><label>Confirm New PIN</label><input type="password" id="s-pin-confirm" placeholder="Confirm new password"></div>
@@ -468,7 +477,7 @@ Wallingford, OX10 7JA</textarea></div>
           </div>
         </div>
         <div class="settings-section">
-          <h3>Data</h3>
+          <h3>Security</h3>
           <div style="display:flex;flex-direction:column;gap:10px">
             <div style="font-size:12px;color:var(--text2);margin-bottom:4px">
               Cloud sync: <span id="settings-bin-id" style="font-family:var(--mono);font-size:11px;color:var(--accent)">checking...</span>
@@ -602,30 +611,28 @@ Wallingford, OX10 7JA</textarea></div>
         </div>
         <div class="field">
           <label>Type</label>
-          <select id="txn-type" onchange="toggleTxnFields()">
+          <select id="txn-type" onchange="onTxnTypeChange()">
             <option value="income">Income</option>
             <option value="expense">Expense</option>
           </select>
         </div>
         <div class="field span2">
           <label>Payee / Description</label>
-          <input type="text" id="txn-payee" placeholder="Who paid you / what did you pay for">
+          <input type="text" id="txn-payee" placeholder="Who paid you / what did you pay for" oninput="onPayeeInput()">
         </div>
         <div class="field">
           <label>Amount (£)</label>
           <input type="number" id="txn-amount" min="0" step="0.01" placeholder="0.00">
         </div>
         <div class="field">
-          <label>Income Stream</label>
-          <select id="txn-stream">
-            <option value="flying">Flying (Self-Employment)</option>
-            <option value="property">Property (Rental)</option>
-            <option value="personal">Personal / Non-deductible</option>
+          <label>Category</label>
+          <select id="txn-category" onchange="onCategoryChange()">
+            <option value="">— Select category —</option>
           </select>
         </div>
-        <div class="field span2" id="txn-hmrc-field">
-          <label>HMRC Expense Category</label>
-          <select id="txn-hmrc"></select>
+        <div class="field span2" id="txn-hmrc-display" style="display:none">
+          <label>HMRC Category (auto-assigned)</label>
+          <div id="txn-hmrc-label" style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;font-size:13px;color:var(--text2)">—</div>
         </div>
         <div class="field span2">
           <label>Notes / Receipt ref</label>
@@ -680,13 +687,8 @@ Wallingford, OX10 7JA</textarea></div>
             <option value="Other">Other</option>
           </select>
         </div>
-        <div class="field">
-          <label>Default Stream</label>
-          <select id="csv-default-stream">
-            <option value="flying">Flying (Self-Employment)</option>
-            <option value="property">Property (Rental)</option>
-            <option value="personal">Personal / Non-deductible</option>
-          </select>
+        <div class="field" style="display:flex;align-items:flex-end">
+          <div style="font-size:11px;color:var(--text3);padding-bottom:8px">Payee names will be auto-matched against your categories. Unmatched transactions are flagged amber for review.</div>
         </div>
       </div>
       <div class="field" style="margin-bottom:16px"><label>Select CSV File</label><input type="file" id="csv-file" accept=".csv"></div>
@@ -700,6 +702,58 @@ Wallingford, OX10 7JA</textarea></div>
 </div>
 
 <!-- MODAL: Add Client -->
+<!-- MODAL: Add/Edit Category -->
+<div class="modal-overlay" id="modal-category">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <h3>Add / Edit Category</h3>
+      <button class="close-modal" onclick="closeModal('modal-category')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid cols-1" style="gap:12px">
+        <div class="field"><label>Category Name</label><input type="text" id="cat-name" placeholder="e.g. Mortgage — Flat 2"></div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Stream</label>
+            <select id="cat-stream">
+              <option value="flying">Flying (Self-Employment)</option>
+              <option value="property">Property (Rental)</option>
+              <option value="personal">Personal / Non-deductible</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Type</label>
+            <select id="cat-type">
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
+              <option value="both">Both</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>HMRC Category (for expenses)</label>
+          <select id="cat-hmrc">
+            <option value="">None / Not applicable</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Payee Keywords (comma-separated)</label>
+          <input type="text" id="cat-keywords" placeholder="e.g. BARCLAYS UK MTGES, BARCLAYS MORTGAGE">
+          <div class="field-hint">These are matched against bank import payee names to auto-categorise. Case-insensitive.</div>
+        </div>
+        <div class="field" style="flex-direction:row;align-items:center;gap:10px">
+          <input type="checkbox" id="cat-recurring" style="width:auto">
+          <label style="text-transform:none;letter-spacing:0;font-size:13px;color:var(--text2)">This is a regular/recurring payment</label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-category')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveCategory()">Save Category</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-client">
   <div class="modal" style="max-width:480px">
     <div class="modal-header">
@@ -771,6 +825,7 @@ function buildPayload() {
     transactions:   state.transactions,
     clients:        state.clients,
     settings:       state.settings,
+    categories:     state.categories,
     nextInvoiceNum: state.nextInvoiceNum,
     mtdSubmitted:   getMTDSubmittedMap(),
     updatedAt:      new Date().toISOString(),
@@ -793,15 +848,16 @@ function applyPayload(data) {
   if (data.transactions)   state.transactions   = data.transactions;
   if (data.clients)        state.clients        = data.clients;
   if (data.settings)       state.settings       = data.settings;
+  if (data.categories)     state.categories     = data.categories;
   if (data.nextInvoiceNum) state.nextInvoiceNum = data.nextInvoiceNum;
   if (data.mtdSubmitted) {
     Object.entries(data.mtdSubmitted).forEach(([k, v]) => DB.save(k, v));
   }
-  // Mirror to localStorage as offline backup
   DB.save('invoices',       state.invoices);
   DB.save('transactions',   state.transactions);
   DB.save('clients',        state.clients);
   DB.save('settings',       state.settings);
+  DB.save('categories',     state.categories);
   DB.save('nextInvoiceNum', state.nextInvoiceNum);
 }
 
@@ -958,16 +1014,75 @@ const ALL_HMRC_CATS = [
   ...HMRC_PROPERTY_CATS.map(c => ({ cat: c, stream: 'property' })),
 ];
 
+// ── Default transaction categories ─────────────────────────────────────
+// Each: { id, name, stream, hmrc, keywords[], recurring, type }
+// keywords: array of strings matched against payee (case-insensitive)
+const DEFAULT_CATEGORIES = [
+  // ── FLYING INCOME ──────────────────────────────────────────────────
+  { id: 'cat_lsa_inc',   name: 'LS Airmotive — Flying Income',      stream: 'flying',    hmrc: '',                                                    keywords: ['LS AIRMOTIVE','LSAIRMOTIVE','LSA'],             recurring: false, type: 'income'  },
+  { id: 'cat_pft_inc',   name: 'Pilot Flight Training — Income',    stream: 'flying',    hmrc: '',                                                    keywords: ['PILOT FLIGHT TRAIN','PltFltTrn'],               recurring: false, type: 'income'  },
+  { id: 'cat_propl_inc', name: 'Propel — Flying Income',            stream: 'flying',    hmrc: '',                                                    keywords: ['PROPEL','PROPL'],                               recurring: false, type: 'income'  },
+  { id: 'cat_stfb_inc',  name: 'Stefan Barden — Tuition',           stream: 'flying',    hmrc: '',                                                    keywords: ['STEFAN','BARDEN','StfBar'],                     recurring: false, type: 'income'  },
+  { id: 'cat_fly_other', name: 'Flying Income — Other',             stream: 'flying',    hmrc: '',                                                    keywords: [],                                              recurring: false, type: 'income'  },
+  // ── PROPERTY INCOME ────────────────────────────────────────────────
+  { id: 'cat_rent_f2',   name: 'Rental Income — Flat 2',            stream: 'property',  hmrc: '',                                                    keywords: ['OLIVIA','ZINCK','ZINNY','OliviaW','RYE'],        recurring: true,  type: 'income'  },
+  { id: 'cat_rent_oth',  name: 'Rental Income — Other',             stream: 'property',  hmrc: '',                                                    keywords: [],                                              recurring: false, type: 'income'  },
+  // ── FLYING EXPENSES ────────────────────────────────────────────────
+  { id: 'cat_aviation',  name: 'Aviation Training / Renewals',      stream: 'flying',    hmrc: 'Aviation training, revalidations, renewals, medical', keywords: ['EURO FLIGHT','EUROFLIGHTTRAINING','FLYLOG','NAVIGRAPH','DISCLOSURE'],    recurring: false, type: 'expense' },
+  { id: 'cat_medical',   name: 'Medical / Healthcare',              stream: 'flying',    hmrc: 'Aviation training, revalidations, renewals, medical', keywords: ['NUFFIELD','HEALTH','MEDICAL'],                  recurring: false, type: 'expense' },
+  { id: 'cat_subscript', name: 'Subscriptions — Aviation',          stream: 'flying',    hmrc: 'Computer software / IT',                              keywords: ['SKYDEMON','PILOTAWARE','FOREFLIGHT'],            recurring: true,  type: 'expense' },
+  { id: 'cat_software',  name: 'Software / IT',                     stream: 'flying',    hmrc: 'Computer software / IT',                              keywords: ['OPENAI','CHATGPT','PAYPAL *GOOGLE','PAYPAL *NAVIGRAPH','QUICKBOOKS'],    recurring: true,  type: 'expense' },
+  { id: 'cat_phone',     name: 'Phone / Mobile',                    stream: 'flying',    hmrc: 'Phone, mobile and internet bills',                    keywords: ['H3G','THREE','EE','O2','VODAFONE','GIFFGAFF'],  recurring: true,  type: 'expense' },
+  { id: 'cat_travel',    name: 'Travel & Accommodation',            stream: 'flying',    hmrc: 'Travel & accommodation (business)',                   keywords: ['HOTEL','PREMIER INN','TRAVEL','TRAIN','NATIONAL RAIL','UBER','TAXI'],   recurring: false, type: 'expense' },
+  { id: 'cat_mileage',   name: 'Mileage',                           stream: 'flying',    hmrc: 'Mileage (45p/mile)',                                  keywords: ['MILEAGE'],                                     recurring: false, type: 'expense' },
+  { id: 'cat_equipment', name: 'Equipment / Headsets',              stream: 'flying',    hmrc: 'Equipment & headsets',                                keywords: ['HEADSET','BOSE','LIGHTSPEED','DAVID CLARK'],    recurring: false, type: 'expense' },
+  { id: 'cat_prof_subs', name: 'Professional Subscriptions',        stream: 'flying',    hmrc: 'Professional subscriptions (BALPA, CAA, etc.)',       keywords: ['BALPA','CAA','GUILD OF AIR PILOTS','AOPA'],     recurring: true,  type: 'expense' },
+  { id: 'cat_stationery',name: 'Stationery / Printing',             stream: 'flying',    hmrc: 'Stationery & printing',                               keywords: ['CARTRIDGE','PRINTER','STAPLES'],                recurring: false, type: 'expense' },
+  { id: 'cat_capex',     name: 'Capital Expenditure',               stream: 'flying',    hmrc: 'Capital expenditure',                                 keywords: ['DELL','APPLE','MONITOR','LAPTOP'],              recurring: false, type: 'expense' },
+  // ── PROPERTY EXPENSES ──────────────────────────────────────────────
+  { id: 'cat_mortgage',  name: 'Mortgage — Barclays',               stream: 'property',  hmrc: 'Mortgage interest',                                   keywords: ['BARCLAYS UK MTGES','BARCLAYS MORTGAGE'],        recurring: true,  type: 'expense' },
+  { id: 'cat_letting',   name: 'Letting / Management Fees',         stream: 'property',  hmrc: 'Letting agent fees / management fees',                keywords: ['CLTD','E+J ESTATES','LETTING','MANAGEMENT FEE'],recurring: true,  type: 'expense' },
+  { id: 'cat_repairs',   name: 'Repairs & Maintenance',             stream: 'property',  hmrc: 'Repairs and maintenance',                             keywords: ['PLUMBING','ELECTRIC','REPAIR','MAINTENANCE','S+R PLUMBING'],          recurring: false, type: 'expense' },
+  { id: 'cat_insurance', name: 'Buildings / Landlord Insurance',    stream: 'property',  hmrc: 'Buildings insurance / landlord insurance',            keywords: ['INSURANCE','DIRECT LINE','AVIVA'],              recurring: true,  type: 'expense' },
+  { id: 'cat_groundrent',name: 'Ground Rent / Service Charge',      stream: 'property',  hmrc: 'Ground rent / service charge',                        keywords: ['GROUND RENT','SERVICE CHARGE','E+J ESTATES GROUND'],                  recurring: true,  type: 'expense' },
+  { id: 'cat_utilities', name: 'Utilities — Property',              stream: 'property',  hmrc: 'Utility bills (property)',                            keywords: ['BG SERVICES','BRITISH GAS','WATER','COUNCIL TAX','SEVERN TRENT'],     recurring: true,  type: 'expense' },
+  // ── PERSONAL / NON-DEDUCTIBLE ──────────────────────────────────────
+  { id: 'cat_hmrc_tax',  name: 'HMRC — Tax / NI Payments',          stream: 'personal',  hmrc: '',                                                    keywords: ['HMRC','CUMBERNAULD','HMRC PAYE','HMRC CUMB'],   recurring: false, type: 'expense' },
+  { id: 'cat_nursery',   name: 'Nursery / Childcare',               stream: 'personal',  hmrc: '',                                                    keywords: ['NURSERY','CHILDCARE','TAX FREE CHILDCAR','ENABLE LTD','NANNYTAX'],    recurring: true,  type: 'expense' },
+  { id: 'cat_savings',   name: 'Savings / Transfers',               stream: 'personal',  hmrc: '',                                                    keywords: ['SAVINGS','TRANSFER'],                          recurring: false, type: 'expense' },
+  { id: 'cat_cc',        name: 'Credit Card Payment',               stream: 'personal',  hmrc: '',                                                    keywords: ['VIRGIN MONEY','CREDIT CARD','AMEX'],            recurring: true,  type: 'expense' },
+  { id: 'cat_personal',  name: 'Personal — Other',                  stream: 'personal',  hmrc: '',                                                    keywords: [],                                              recurring: false, type: 'expense' },
+];
+
+function getCategories() {
+  // If user has never customised, use defaults. Otherwise use their saved list.
+  return state.categories || DEFAULT_CATEGORIES;
+}
+
+function autoMatchCategory(payee) {
+  const cats = getCategories();
+  const p = (payee || '').toUpperCase();
+  for (const cat of cats) {
+    if (cat.keywords && cat.keywords.some(k => k && p.includes(k.toUpperCase()))) {
+      return cat;
+    }
+  }
+  return null;
+}
+
 // State
 let state = {
   invoices: DB.load('invoices', []),
   transactions: DB.load('transactions', []),
   clients: DB.load('clients', DEFAULT_CLIENTS),
   settings: DB.load('settings', {}),
+  categories: DB.load('categories', null), // null = use defaults on first load
   nextInvoiceNum: DB.load('nextInvoiceNum', 246),
   editingInvoiceId: null,
   editingTxnId: null,
+  editingCatId: null,
   csvRows: [],
+  csvHeaders: [],
 };
 
 function saveState() {
@@ -975,7 +1090,9 @@ function saveState() {
   DB.save('transactions', state.transactions);
   DB.save('clients', state.clients);
   DB.save('settings', state.settings);
+  DB.save('categories', state.categories);
   DB.save('nextInvoiceNum', state.nextInvoiceNum);
+  debouncedSync();
 }
 
 // ══════════════════════════════════════════════════════
@@ -1036,14 +1153,13 @@ async function changePassword() {
 function initApp() {
   loadSettings();
   populateClientSelects();
-  populateHMRCSelect();
   renderDashboard();
   renderInvoices();
   renderTransactions();
   renderMTD();
   renderClientList();
+  renderCategoryList();
   updateUnpaidBadge();
-  // Show bin ID in settings
   const binEl = document.getElementById('settings-bin-id');
   if (binEl) {
     const id = getBinId();
@@ -1921,23 +2037,65 @@ function viewPrintInvoice(id) {
 // ══════════════════════════════════════════════════════
 // TRANSACTIONS
 // ══════════════════════════════════════════════════════
-function populateHMRCSelect(stream = '') {
-  const sel = document.getElementById('txn-hmrc');
+// ══════════════════════════════════════════════════════
+// TRANSACTIONS
+// ══════════════════════════════════════════════════════
+function populateCategorySelect(type = '') {
+  const sel = document.getElementById('txn-category');
   if (!sel) return;
-  sel.innerHTML = '';
-  const cats = stream ? ALL_HMRC_CATS.filter(c => c.stream === stream) : ALL_HMRC_CATS;
-  const groups = {};
+  const cats = getCategories().filter(c => !type || c.type === type || c.type === 'both');
+  const groups = { 'Flying (Self-Employment)': [], 'Property (Rental)': [], 'Personal / Non-deductible': [] };
   cats.forEach(c => {
-    const g = c.stream === 'flying' ? 'Flying (Self-Employment)' : 'Property (Rental)';
-    if (!groups[g]) groups[g] = [];
-    groups[g].push(c.cat);
+    const g = c.stream === 'flying' ? 'Flying (Self-Employment)' : c.stream === 'property' ? 'Property (Rental)' : 'Personal / Non-deductible';
+    groups[g].push(c);
   });
+  sel.innerHTML = '<option value="">— Select category —</option>';
   Object.entries(groups).forEach(([g, cats]) => {
+    if (!cats.length) return;
     const og = document.createElement('optgroup');
     og.label = g;
-    cats.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; og.appendChild(o); });
+    cats.forEach(c => {
+      const o = document.createElement('option');
+      o.value = c.id;
+      o.textContent = c.name;
+      og.appendChild(o);
+    });
     sel.appendChild(og);
   });
+}
+
+function onTxnTypeChange() {
+  const type = document.getElementById('txn-type').value;
+  populateCategorySelect(type);
+  const linkField = document.getElementById('txn-link-invoice-field');
+  if (linkField) linkField.style.display = type === 'income' ? '' : 'none';
+  onCategoryChange();
+}
+
+function onPayeeInput() {
+  const payee = document.getElementById('txn-payee').value;
+  if (payee.length < 3) return;
+  const match = autoMatchCategory(payee);
+  if (match) {
+    const sel = document.getElementById('txn-category');
+    if (sel && (!sel.value)) {
+      sel.value = match.id;
+      onCategoryChange();
+    }
+  }
+}
+
+function onCategoryChange() {
+  const catId = document.getElementById('txn-category').value;
+  const cat = getCategories().find(c => c.id === catId);
+  const hmrcDisplay = document.getElementById('txn-hmrc-display');
+  const hmrcLabel = document.getElementById('txn-hmrc-label');
+  if (cat && cat.hmrc) {
+    hmrcDisplay.style.display = '';
+    hmrcLabel.textContent = cat.hmrc;
+  } else {
+    hmrcDisplay.style.display = 'none';
+  }
 }
 
 function openNewTransaction() {
@@ -1947,33 +2105,31 @@ function openNewTransaction() {
   document.getElementById('txn-type').value = 'expense';
   document.getElementById('txn-payee').value = '';
   document.getElementById('txn-amount').value = '';
-  document.getElementById('txn-stream').value = 'flying';
   document.getElementById('txn-notes').value = '';
   document.getElementById('txn-receipt').value = 'yes';
-  // Populate invoice links
   const sel = document.getElementById('txn-link-invoice');
   sel.innerHTML = '<option value="">None</option>';
   state.invoices.forEach(i => { sel.innerHTML += `<option value="${i.id}">#${i.number} — ${i.clientName} (${fmt(i.total)})</option>`; });
-  populateHMRCSelect();
-  toggleTxnFields();
+  populateCategorySelect('expense');
+  document.getElementById('txn-category').value = '';
+  document.getElementById('txn-link-invoice-field').style.display = 'none';
+  document.getElementById('txn-hmrc-display').style.display = 'none';
   openModal('modal-transaction');
 }
 
-function toggleTxnFields() {
-  const isIncome = document.getElementById('txn-type').value === 'income';
-  document.getElementById('txn-hmrc-field').style.display = isIncome ? 'none' : '';
-  document.getElementById('txn-link-invoice-field').style.display = isIncome ? '' : 'none';
-}
-
 function saveTransaction() {
+  const catId = document.getElementById('txn-category').value;
+  const cat = getCategories().find(c => c.id === catId);
   const txn = {
     id: state.editingTxnId || Date.now().toString(),
     date: document.getElementById('txn-date').value,
     type: document.getElementById('txn-type').value,
     payee: document.getElementById('txn-payee').value,
     amount: parseFloat(document.getElementById('txn-amount').value) || 0,
-    stream: document.getElementById('txn-stream').value,
-    hmrcCat: document.getElementById('txn-type').value === 'expense' ? document.getElementById('txn-hmrc').value : '',
+    categoryId: catId || '',
+    categoryName: cat ? cat.name : '',
+    stream: cat ? cat.stream : 'personal',
+    hmrcCat: cat ? cat.hmrc : '',
     notes: document.getElementById('txn-notes').value,
     receipt: document.getElementById('txn-receipt').value,
     invoiceId: document.getElementById('txn-type').value === 'income' ? document.getElementById('txn-link-invoice').value : '',
@@ -2000,7 +2156,7 @@ function renderTransactions() {
   const filterQ = document.getElementById('txn-filter-quarter').value;
 
   let txns = [...state.transactions].sort((a, b) => b.date.localeCompare(a.date));
-  if (search) txns = txns.filter(t => t.payee.toLowerCase().includes(search) || (t.notes||'').toLowerCase().includes(search));
+  if (search) txns = txns.filter(t => t.payee.toLowerCase().includes(search) || (t.categoryName||'').toLowerCase().includes(search) || (t.notes||'').toLowerCase().includes(search));
   if (filterStream) txns = txns.filter(t => t.stream === filterStream);
   if (filterType) txns = txns.filter(t => t.type === filterType);
   if (filterQ) txns = txns.filter(t => t.quarter === filterQ);
@@ -2011,15 +2167,18 @@ function renderTransactions() {
 
   const tbody = document.getElementById('txn-table-body');
   if (txns.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty"><div class="icon">⇅</div><p>No transactions found</p><p class="hint">Add transactions manually or import from Monzo CSV</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="icon">⇅</div><p>No transactions found</p><p class="hint">Add transactions manually or import from bank CSV</p></div></td></tr>`;
     return;
   }
-  tbody.innerHTML = txns.map(t => `
-    <tr>
+  tbody.innerHTML = txns.map(t => {
+    const uncategorised = !t.categoryId && !t.categoryName;
+    const catDisplay = t.categoryName
+      ? `<div style="font-size:13px;color:var(--text)">${t.categoryName}</div>${t.hmrcCat ? `<div style="font-size:10px;color:var(--text3);margin-top:1px">${t.hmrcCat}</div>` : ''}`
+      : `<span class="pill pill-amber">Uncategorised</span>`;
+    return `<tr>
       <td class="mono">${fmtDate(t.date)}</td>
-      <td class="primary" style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.payee}</td>
-      <td><span class="pill ${t.stream==='flying'?'pill-purple':t.stream==='property'?'pill-blue':'pill-grey'}">${t.stream==='flying'?'✈ Flying':t.stream==='property'?'⌂ Property':'Personal'}</span></td>
-      <td style="font-size:11px;color:var(--text3);max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.hmrcCat || '—'}</td>
+      <td class="primary" style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.payee}</td>
+      <td style="min-width:160px">${catDisplay}</td>
       <td class="${t.type==='income'?'green':''} mono">${t.type==='income'?fmt(t.amount):''}</td>
       <td class="${t.type==='expense'?'red':''} mono">${t.type==='expense'?fmt(t.amount):''}</td>
       <td><span class="pill pill-grey">${t.quarter||'—'}</span></td>
@@ -2029,7 +2188,8 @@ function renderTransactions() {
           <button class="btn btn-xs btn-danger" onclick="deleteTransaction('${t.id}')">×</button>
         </div>
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 function editTransaction(id) {
@@ -2041,16 +2201,16 @@ function editTransaction(id) {
   document.getElementById('txn-type').value = t.type;
   document.getElementById('txn-payee').value = t.payee;
   document.getElementById('txn-amount').value = t.amount;
-  document.getElementById('txn-stream').value = t.stream;
   document.getElementById('txn-notes').value = t.notes || '';
   document.getElementById('txn-receipt').value = t.receipt || 'yes';
   const sel = document.getElementById('txn-link-invoice');
   sel.innerHTML = '<option value="">None</option>';
   state.invoices.forEach(i => { sel.innerHTML += `<option value="${i.id}">${i.number} — ${i.clientName}</option>`; });
   sel.value = t.invoiceId || '';
-  populateHMRCSelect();
-  document.getElementById('txn-hmrc').value = t.hmrcCat || '';
-  toggleTxnFields();
+  document.getElementById('txn-link-invoice-field').style.display = t.type === 'income' ? '' : 'none';
+  populateCategorySelect(t.type);
+  document.getElementById('txn-category').value = t.categoryId || '';
+  onCategoryChange();
   openModal('modal-transaction');
 }
 
@@ -2301,8 +2461,109 @@ function deleteClient(idx) {
 }
 
 // ══════════════════════════════════════════════════════
-// CSV IMPORT
+// CATEGORIES
 // ══════════════════════════════════════════════════════
+function renderCategoryList() {
+  const el = document.getElementById('category-list');
+  if (!el) return;
+  const cats = getCategories();
+  const streamLabel = s => s === 'flying' ? '✈ Flying' : s === 'property' ? '⌂ Property' : '· Personal';
+  const streamPill  = s => s === 'flying' ? 'pill-purple' : s === 'property' ? 'pill-blue' : 'pill-grey';
+  el.innerHTML = cats.map((c, i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500">${c.name}${c.recurring ? ' <span style="font-size:10px;color:var(--amber)">● recurring</span>' : ''}</div>
+        ${c.hmrc ? `<div style="font-size:11px;color:var(--text3);margin-top:1px">${c.hmrc}</div>` : ''}
+        ${c.keywords && c.keywords.length ? `<div style="font-size:10px;color:var(--text3);margin-top:2px;font-family:var(--mono)">${c.keywords.slice(0,3).join(', ')}${c.keywords.length > 3 ? '…' : ''}</div>` : ''}
+      </div>
+      <span class="pill ${streamPill(c.stream)}" style="flex-shrink:0">${streamLabel(c.stream)}</span>
+      <button class="btn btn-xs btn-ghost" onclick="editCategory(${i})">Edit</button>
+      <button class="btn btn-xs btn-danger" onclick="deleteCategory(${i})">×</button>
+    </div>`).join('');
+}
+
+function populateCatHMRCSelect(selected = '') {
+  const sel = document.getElementById('cat-hmrc');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">None / Not applicable</option>';
+  const groups = { 'Flying': HMRC_FLYING_CATS, 'Property': HMRC_PROPERTY_CATS };
+  Object.entries(groups).forEach(([g, cats]) => {
+    const og = document.createElement('optgroup');
+    og.label = g;
+    cats.forEach(c => {
+      const o = document.createElement('option');
+      o.value = c; o.textContent = c;
+      if (c === selected) o.selected = true;
+      og.appendChild(o);
+    });
+    sel.appendChild(og);
+  });
+}
+
+function openAddCategory() {
+  state.editingCatId = null;
+  document.getElementById('cat-name').value = '';
+  document.getElementById('cat-stream').value = 'flying';
+  document.getElementById('cat-type').value = 'expense';
+  document.getElementById('cat-keywords').value = '';
+  document.getElementById('cat-recurring').checked = false;
+  populateCatHMRCSelect();
+  openModal('modal-category');
+}
+
+function editCategory(idx) {
+  const cats = getCategories();
+  const c = cats[idx];
+  state.editingCatId = idx;
+  document.getElementById('cat-name').value = c.name;
+  document.getElementById('cat-stream').value = c.stream;
+  document.getElementById('cat-type').value = c.type || 'expense';
+  document.getElementById('cat-keywords').value = (c.keywords || []).join(', ');
+  document.getElementById('cat-recurring').checked = !!c.recurring;
+  populateCatHMRCSelect(c.hmrc || '');
+  openModal('modal-category');
+}
+
+function saveCategory() {
+  const name = document.getElementById('cat-name').value.trim();
+  if (!name) { alert('Please enter a category name.'); return; }
+  const keywords = document.getElementById('cat-keywords').value
+    .split(',').map(k => k.trim()).filter(Boolean);
+  const cat = {
+    id:        state.editingCatId !== null ? getCategories()[state.editingCatId].id : 'cat_' + Date.now(),
+    name,
+    stream:    document.getElementById('cat-stream').value,
+    type:      document.getElementById('cat-type').value,
+    hmrc:      document.getElementById('cat-hmrc').value,
+    keywords,
+    recurring: document.getElementById('cat-recurring').checked,
+  };
+  // Initialise from defaults if first edit
+  if (!state.categories) state.categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+  if (state.editingCatId !== null) {
+    state.categories[state.editingCatId] = cat;
+  } else {
+    state.categories.push(cat);
+  }
+  saveState();
+  renderCategoryList();
+  closeModal('modal-category');
+}
+
+function deleteCategory(idx) {
+  if (!confirm('Delete this category? Existing transactions using it will keep their category name.')) return;
+  if (!state.categories) state.categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+  state.categories.splice(idx, 1);
+  saveState();
+  renderCategoryList();
+}
+
+function resetCategoriesToDefault() {
+  if (!confirm('Reset all categories to the built-in defaults? Your custom categories will be lost.')) return;
+  state.categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+  saveState();
+  renderCategoryList();
+}
 function openImportModal() { openModal('modal-import'); }
 
 document.getElementById('csv-file').addEventListener('change', function() {
@@ -2401,39 +2662,42 @@ function parseRow(row, headers, bank) {
 function processCSVImport() {
   if (!state.csvRows.length) { alert('No CSV data loaded.'); return; }
   const bank = document.getElementById('csv-bank-source').value;
-  const defaultStream = document.getElementById('csv-default-stream').value;
-
-  // Re-read headers
-  const fileInput = document.getElementById('csv-file');
-  // We already have state.csvRows — parse using bank format
-  // Need headers — store them when file loads
   const headers = state.csvHeaders || [];
+  let imported = 0, skipped = 0, matched = 0;
 
-  let imported = 0, skipped = 0;
   state.csvRows.forEach(row => {
     const { date, name, amount } = parseRow(row, headers, bank);
     if (!date || !name || !amount) { skipped++; return; }
+
+    // Auto-match category from payee name
+    const cat = autoMatchCategory(name);
+
     const txn = {
       id: Date.now().toString() + Math.random(),
       date,
       type: amount > 0 ? 'income' : 'expense',
       payee: name,
       amount: Math.abs(amount),
-      stream: defaultStream,
-      hmrcCat: '',
+      categoryId:   cat ? cat.id     : '',
+      categoryName: cat ? cat.name   : '',
+      stream:       cat ? cat.stream : 'personal',
+      hmrcCat:      cat ? cat.hmrc   : '',
       notes: `Imported from ${bank}`,
       receipt: 'bank',
       invoiceId: '',
       quarter: getTaxQuarter(date),
     };
+    if (cat) matched++;
     state.transactions.push(txn);
     imported++;
   });
+
   saveState();
   renderTransactions();
   renderDashboard();
   closeModal('modal-import');
-  alert(`✓ Imported ${imported} transactions from ${bank}.${skipped > 0 ? ` ${skipped} rows skipped (no date/amount).` : ''}\n\nPlease review each one in Transactions and set the correct Stream and HMRC category.`);
+  const uncategorised = imported - matched;
+  alert(`✓ Imported ${imported} transactions from ${bank}.\n\n✓ Auto-categorised: ${matched}\n${uncategorised > 0 ? `⚠ Uncategorised: ${uncategorised} — review these in the Transactions tab (shown in amber)` : ''}${skipped > 0 ? `\n${skipped} rows skipped (no date/amount).` : ''}`);
 }
 
 // ══════════════════════════════════════════════════════
