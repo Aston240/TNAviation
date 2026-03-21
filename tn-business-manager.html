@@ -1279,10 +1279,11 @@ function showTab(tab) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
   event.currentTarget.classList.add('active');
-  if (tab === 'dashboard') renderDashboard();
-  if (tab === 'invoices') renderInvoices();
+  if (tab === 'dashboard')    renderDashboard();
+  if (tab === 'invoices')     renderInvoices();
   if (tab === 'transactions') renderTransactions();
-  if (tab === 'mtd') renderMTD();
+  if (tab === 'mtd')          renderMTD();
+  if (tab === 'settings')     { renderClientList(); renderCategoryList(); }
 }
 
 function closeModal(id) {
