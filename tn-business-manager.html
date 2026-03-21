@@ -446,12 +446,9 @@ Wallingford, OX10 7JA</textarea></div>
             <div class="field"><label>Account Number</label><input type="text" id="s-accno" value="60506141"></div>
             <div class="field"><label>Sort Code</label><input type="text" id="s-sort" value="20-26-82"></div>
           </div>
-          <h3 style="margin-top:24px">Day Rates</h3>
+          <h3 style="margin-top:24px">Invoice Defaults</h3>
           <div style="display:flex;flex-direction:column;gap:12px">
-            <div class="field"><label>Standard Day Rate (£)</label><input type="number" id="s-rate-full" value="200"></div>
-            <div class="field"><label>Half Day Rate (£)</label><input type="number" id="s-rate-half" value="100"></div>
-            <div class="field"><label>Night Flying Premium (£)</label><input type="number" id="s-rate-night" value="100"></div>
-            <div class="field"><label>Renewal/Test (£)</label><input type="number" id="s-rate-test" value="175"></div>
+            <div class="field"><label>Default Day Rate (£)</label><input type="number" id="s-rate-full" value="200"></div>
           </div>
         </div>
         <div class="settings-section" style="grid-column: span 2">
@@ -495,55 +492,96 @@ Wallingford, OX10 7JA</textarea></div>
 
 <!-- MODAL: New/Edit Invoice -->
 <div class="modal-overlay" id="modal-invoice">
-  <div class="modal" style="max-width:720px">
+  <div class="modal" style="max-width:780px">
     <div class="modal-header">
       <h3 id="modal-inv-title">New Invoice</h3>
       <button class="close-modal" onclick="closeModal('modal-invoice')">×</button>
     </div>
     <div class="modal-body">
+
+      <!-- Header fields -->
       <div class="form-grid" style="margin-bottom:16px">
         <div class="field">
           <label>Client</label>
-          <select id="inv-client" onchange="populateClientDetails()">
+          <select id="inv-client" onchange="onClientChange()">
             <option value="">Select client...</option>
           </select>
+        </div>
+        <div class="field">
+          <label>Invoice #</label>
+          <input type="text" id="inv-number" style="color:var(--accent);font-family:var(--mono)">
         </div>
         <div class="field">
           <label>Invoice Date</label>
           <input type="date" id="inv-date">
         </div>
         <div class="field">
-          <label>Invoice #</label>
-          <input type="text" id="inv-number" readonly style="color:var(--accent);font-family:var(--mono)">
-        </div>
-        <div class="field">
           <label>Payment Due</label>
           <input type="date" id="inv-due">
         </div>
         <div class="field span2">
-          <label>Invoice To (Name / Email)</label>
-          <input type="text" id="inv-to" placeholder="Name and email address">
+          <label>Invoice To (Name / Address)</label>
+          <input type="text" id="inv-to" placeholder="Full name and address of recipient">
         </div>
       </div>
-      <div style="font-size:12px;color:var(--text3);font-family:var(--mono);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Line Items</div>
-      <div class="invoice-lines" id="invoice-lines-container">
-        <div class="invoice-line-header">
-          <div>Date</div><div>Description</div><div>Notes</div><div>Amount £</div><div></div>
-        </div>
-        <div id="invoice-lines"></div>
+
+      <!-- Invoice type toggle -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+        <span style="font-size:12px;color:var(--text3);font-family:var(--mono);letter-spacing:1px;text-transform:uppercase">Invoice Type:</span>
+        <button class="btn btn-sm" id="type-btn-monthly" onclick="setInvType('monthly')" style="background:var(--accent);color:#fff">📅 Monthly (Day Rate)</button>
+        <button class="btn btn-sm btn-ghost" id="type-btn-adhoc" onclick="setInvType('adhoc')">✏ Ad-hoc Lines</button>
       </div>
-      <button class="add-line-btn" onclick="addInvoiceLine()" style="margin-top:8px">+ Add Line</button>
-      <div class="invoice-total"><span>TOTAL</span><strong id="inv-total-display">£0.00</strong></div>
-      <div class="form-grid cols-1" style="margin-top:16px">
-        <div class="field">
-          <label>Notes (optional)</label>
-          <textarea id="inv-notes" placeholder="Payment instructions, additional notes..."></textarea>
+
+      <!-- MONTHLY MODE -->
+      <div id="inv-monthly-section">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+          <div class="field" style="flex:0 0 auto">
+            <label>Month</label>
+            <input type="month" id="inv-month" onchange="generateMonthlyLines()" style="width:160px">
+          </div>
+          <div class="field" style="flex:0 0 auto">
+            <label>Default Day Rate (£)</label>
+            <input type="number" id="inv-default-rate" value="200" style="width:100px" onchange="updateAllDefaultRates()">
+          </div>
+          <div style="margin-top:18px;display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-xs btn-ghost" onclick="setAllDays(200)">All £200</button>
+            <button class="btn btn-xs btn-ghost" onclick="setAllDays(0)">All £0</button>
+            <button class="btn btn-xs btn-ghost" onclick="includeWeekends()" id="weekend-btn">+ Weekends</button>
+          </div>
         </div>
+
+        <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <div style="display:grid;grid-template-columns:90px 110px 1fr 90px;gap:0;background:var(--surface2);padding:7px 10px;font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid var(--border)">
+            <div>Day</div><div>Amount £</div><div>Note / Description</div><div>Add-on</div>
+          </div>
+          <div id="monthly-lines" style="max-height:380px;overflow-y:auto"></div>
+        </div>
+      </div>
+
+      <!-- AD-HOC MODE -->
+      <div id="inv-adhoc-section" style="display:none">
+        <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">
+          <div style="display:grid;grid-template-columns:110px 130px 1fr 90px 36px;gap:0;background:var(--surface2);padding:7px 10px;font-size:10px;color:var(--text3);font-family:var(--mono);letter-spacing:1px;text-transform:uppercase;border-bottom:1px solid var(--border)">
+            <div>Date</div><div>Type / Rate</div><div>Description / Notes</div><div>Amount £</div><div></div>
+          </div>
+          <div id="adhoc-lines"></div>
+        </div>
+        <button class="add-line-btn" onclick="addAdhocLine()" style="margin-top:8px;width:100%;background:none;border:1px dashed var(--border2);color:var(--text3);padding:8px;font-size:12px;cursor:pointer;border-radius:0 0 8px 8px">+ Add Line</button>
+      </div>
+
+      <!-- Total + footer note -->
+      <div style="display:flex;justify-content:flex-end;align-items:center;gap:16px;padding:12px 10px;background:var(--surface2);border-radius:8px;margin-top:10px">
+        <span style="font-family:var(--mono);font-size:12px;color:var(--text3)">TOTAL</span>
+        <span style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--green)" id="inv-total-display">£0.00</span>
+      </div>
+      <div class="field" style="margin-top:12px">
+        <label>Footer Note (optional)</label>
+        <textarea id="inv-notes" placeholder="e.g. Didn't charge for SETG because offset home early one day for kids" rows="2"></textarea>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-invoice')">Cancel</button>
-      <button class="btn btn-success" onclick="printInvoice()">🖨 Print / PDF</button>
+      <button class="btn btn-success" onclick="printCurrentInvoice()">🖨 Print / PDF</button>
       <button class="btn btn-primary" onclick="saveInvoice()">Save Invoice</button>
     </div>
   </div>
@@ -674,7 +712,10 @@ Wallingford, OX10 7JA</textarea></div>
         <div class="field"><label>Full Name / Company</label><input type="text" id="c-name" placeholder="Full legal name"></div>
         <div class="field"><label>Address</label><textarea id="c-address" rows="3" placeholder="Full address"></textarea></div>
         <div class="field"><label>Email</label><input type="text" id="c-email" placeholder="billing@company.com"></div>
-        <div class="field"><label>Default Day Rate (£)</label><input type="number" id="c-rate" placeholder="200"></div>
+        <div class="form-grid" style="gap:12px">
+          <div class="field"><label>Full Day Rate (£)</label><input type="number" id="c-rate" placeholder="250"></div>
+          <div class="field"><label>Trip / Private Rate (£)</label><input type="number" id="c-trip-rate" placeholder="500"></div>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -867,16 +908,16 @@ async function sha256(str) {
 
 // Default clients from spreadsheet
 const DEFAULT_CLIENTS = [
-  { id: 'LSAir',       name: 'LS Airmotive Ltd',                  address: 'Hangar 2, Oxford Airport, Langford Lane, Kidlington, Oxfordshire, OX5 1RA', email: '', rate: 200 },
-  { id: 'PltFltTrn',   name: 'Pilot Flight Training',             address: 'London Oxford Airport, OX5 1RA', email: '', rate: 200 },
-  { id: 'StfBar',      name: 'Stefan Barden',                     address: '', email: 'stefan.barden@hotmail.co.uk', rate: 200 },
-  { id: 'Propl',       name: 'Propel Flight Operations Ltd',      address: 'Mulberry House, Crick Road, Rugby, CV23 8YL', email: '', rate: 200 },
-  { id: 'OliviaW',     name: 'Zinck Aviation Ltd (O.Wilkinson)',  address: 'Nene House, 4 Rushmills, Northampton, NN4 7YB', email: 'oawilkinson@gmail.com', rate: 200 },
-  { id: 'Cwlkr',       name: 'Charlie R Walker Ltd',              address: '', email: '', rate: 200 },
-  { id: 'Lvgstn',      name: 'Livingstone Skies Ltd',             address: 'London Oxford Airport, OX5 1RA', email: '', rate: 200 },
-  { id: 'MidAng',      name: 'Mid Anglia School of Flying',       address: 'Cambridge Airport, Newmarket Rd, Cambridge CB5 8RX', email: '', rate: 200 },
-  { id: 'Afield',      name: 'Andrewsfield Aviation',             address: 'Saling Airfield, Stebbing, Great Dunmow, Essex, CM6 3TH', email: '', rate: 200 },
-  { id: 'Sbswilk',     name: 'SBS Wilkinson',                     address: '', email: 'sbswilkinson@btinternet.com', rate: 200 },
+  { id: 'LSAir',     name: 'LS Airmotive Ltd',                 address: 'Hangar 2, Oxford Airport, Langford Lane, Kidlington, Oxfordshire, OX5 1RA', email: '', rate: 200, tripRate: 500 },
+  { id: 'PltFltTrn', name: 'Pilot Flight Training',            address: 'London Oxford Airport, OX5 1RA',                                            email: '', rate: 250, tripRate: 500 },
+  { id: 'StfBar',    name: 'Stefan Barden',                    address: '', email: 'stefan.barden@hotmail.co.uk',                                     rate: 250, tripRate: 500 },
+  { id: 'Propl',     name: 'Propel Flight Operations Ltd',     address: 'Mulberry House, Crick Road, Rugby, CV23 8YL',                               email: '', rate: 250, tripRate: 500 },
+  { id: 'OliviaW',   name: 'Zinck Aviation Ltd (O.Wilkinson)', address: 'Nene House, 4 Rushmills, Northampton, NN4 7YB', email: 'oawilkinson@gmail.com', rate: 250, tripRate: 500 },
+  { id: 'Cwlkr',     name: 'Charlie R Walker Ltd',             address: '', email: '',                                                                 rate: 250, tripRate: 500 },
+  { id: 'Lvgstn',    name: 'Livingstone Skies Ltd',            address: 'London Oxford Airport, OX5 1RA',                                            email: '', rate: 250, tripRate: 500 },
+  { id: 'MidAng',    name: 'Mid Anglia School of Flying',      address: 'Cambridge Airport, Newmarket Rd, Cambridge CB5 8RX',                        email: '', rate: 250, tripRate: 500 },
+  { id: 'Afield',    name: 'Andrewsfield Aviation',            address: 'Saling Airfield, Stebbing, Great Dunmow, Essex, CM6 3TH',                   email: '', rate: 250, tripRate: 500 },
+  { id: 'Sbswilk',   name: 'SBS Wilkinson',                    address: '', email: 'sbswilkinson@btinternet.com',                                     rate: 250, tripRate: 500 },
 ];
 
 // HMRC Expense Categories (flying business)
@@ -1170,67 +1211,443 @@ function renderDashboard() {
 // ══════════════════════════════════════════════════════
 // INVOICES
 // ══════════════════════════════════════════════════════
+let invType = 'monthly'; // 'monthly' | 'adhoc'
+let weekendsShown = false;
+
+function setInvType(type) {
+  invType = type;
+  document.getElementById('inv-monthly-section').style.display = type === 'monthly' ? '' : 'none';
+  document.getElementById('inv-adhoc-section').style.display  = type === 'adhoc'   ? '' : 'none';
+  document.getElementById('type-btn-monthly').style.background = type === 'monthly' ? 'var(--accent)' : '';
+  document.getElementById('type-btn-monthly').style.color      = type === 'monthly' ? '#fff' : '';
+  document.getElementById('type-btn-monthly').className = type === 'monthly' ? 'btn btn-sm' : 'btn btn-sm btn-ghost';
+  document.getElementById('type-btn-adhoc').className   = type === 'adhoc'   ? 'btn btn-sm' : 'btn btn-sm btn-ghost';
+  if (type === 'adhoc' && document.getElementById('adhoc-lines').children.length === 0) addAdhocLine();
+  updateInvTotal();
+}
+
 function openNewInvoice() {
   state.editingInvoiceId = null;
+  weekendsShown = false;
   document.getElementById('modal-inv-title').textContent = 'New Invoice';
   document.getElementById('inv-number').value = state.nextInvoiceNum;
   document.getElementById('inv-date').value = today();
-  // Due date = 7 days
   const due = new Date(); due.setDate(due.getDate() + 7);
   document.getElementById('inv-due').value = due.toISOString().split('T')[0];
   document.getElementById('inv-client').value = '';
   document.getElementById('inv-to').value = '';
   document.getElementById('inv-notes').value = '';
-  document.getElementById('invoice-lines').innerHTML = '';
-  addInvoiceLine();
-  updateInvTotal();
+  document.getElementById('inv-default-rate').value = 200;
+  // Default month to last month (most common use case)
+  const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 0);
+  document.getElementById('inv-month').value = d.toISOString().slice(0,7);
+  document.getElementById('monthly-lines').innerHTML = '';
+  document.getElementById('adhoc-lines').innerHTML = '';
+  setInvType('monthly');
+  generateMonthlyLines();
   openModal('modal-invoice');
 }
 
-function addInvoiceLine(date = '', desc = '', notes = '', amount = '') {
-  const id = Date.now() + Math.random();
+function onClientChange() {
+  const id = document.getElementById('inv-client').value;
+  const c = state.clients.find(c => c.id === id);
+  if (!c) return;
+  // Auto-populate address
+  document.getElementById('inv-to').value = c.address ? `${c.name}\n${c.address}` : c.name;
+  // Set default rate for this client
+  document.getElementById('inv-default-rate').value = c.rate || 200;
+  // LS Airmotive = monthly full weekday invoice; everyone else = ad-hoc
+  if (id === 'LSAir') {
+    setInvType('monthly');
+    generateMonthlyLines();
+  } else {
+    setInvType('adhoc');
+    if (document.getElementById('adhoc-lines').children.length === 0) addAdhocLine();
+  }
+}
+
+// ── MONTHLY LINE GENERATOR ──────────────────────────
+function generateMonthlyLines() {
+  const monthVal = document.getElementById('inv-month').value;
+  if (!monthVal) return;
+  const [year, month] = monthVal.split('-').map(Number);
+  const clientId = document.getElementById('inv-client').value;
+  const client = state.clients.find(c => c.id === clientId);
+  const defaultRate = parseFloat(document.getElementById('inv-default-rate').value) || (client?.rate || 200);
+  document.getElementById('inv-default-rate').value = defaultRate;
+  const daysInMonth = new Date(year, month, 0).getDate();
+
+  // Preserve existing values if regenerating
+  const existing = {};
+  document.querySelectorAll('.monthly-day-row').forEach(row => {
+    existing[row.dataset.date] = {
+      amount: parseFloat(row.querySelector('.day-amount').value) || 0,
+      note: row.querySelector('.day-note').value,
+    };
+  });
+
+  const container = document.getElementById('monthly-lines');
+  container.innerHTML = '';
+  weekendsShown = false;
+  document.getElementById('weekend-btn').textContent = '+ Weekends';
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = new Date(year, month - 1, d);
+    const dow = date.getDay(); // 0=Sun, 6=Sat
+    const isWeekend = dow === 0 || dow === 6;
+    if (isWeekend) continue; // weekdays only initially
+    const dateStr = date.toISOString().split('T')[0];
+    const dayName = date.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' });
+    const prev = existing[dateStr];
+    const amt = prev ? prev.amount : defaultRate;
+    const note = prev ? prev.note : '';
+    container.appendChild(makeDayRow(dateStr, dayName, amt, note, false));
+  }
+
+  // Set invoice date to last day of month
+  const lastDay = new Date(year, month, 0).toISOString().split('T')[0];
+  document.getElementById('inv-date').value = lastDay;
+  // Due = 7 days after
+  const dueDate = new Date(year, month, 7).toISOString().split('T')[0];
+  document.getElementById('inv-due').value = dueDate;
+  updateInvTotal();
+}
+
+function includeWeekends() {
+  const monthVal = document.getElementById('inv-month').value;
+  if (!monthVal) return;
+  const [year, month] = monthVal.split('-').map(Number);
+  const defaultRate = parseFloat(document.getElementById('inv-default-rate').value) || 200;
+  const daysInMonth = new Date(year, month, 0).getDate();
+
+  if (weekendsShown) {
+    // Remove weekend rows
+    document.querySelectorAll('.monthly-day-row.weekend-row').forEach(r => r.remove());
+    weekendsShown = false;
+    document.getElementById('weekend-btn').textContent = '+ Weekends';
+  } else {
+    // Insert weekend rows in correct date order
+    const container = document.getElementById('monthly-lines');
+    const existing = {};
+    container.querySelectorAll('.monthly-day-row').forEach(r => existing[r.dataset.date] = r);
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(year, month - 1, d);
+      const dow = date.getDay();
+      if (dow !== 0 && dow !== 6) continue;
+      const dateStr = date.toISOString().split('T')[0];
+      const dayName = date.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' });
+      const row = makeDayRow(dateStr, dayName, 0, '', true);
+      // Insert in correct position
+      let inserted = false;
+      container.querySelectorAll('.monthly-day-row').forEach(existing => {
+        if (!inserted && existing.dataset.date > dateStr) {
+          container.insertBefore(row, existing);
+          inserted = true;
+        }
+      });
+      if (!inserted) container.appendChild(row);
+    }
+    weekendsShown = true;
+    document.getElementById('weekend-btn').textContent = '− Weekends';
+  }
+  updateInvTotal();
+}
+
+function makeDayRow(dateStr, dayName, amount, note, isWeekend) {
   const div = document.createElement('div');
-  div.className = 'invoice-line';
-  div.dataset.lineId = id;
-  div.innerHTML = `
-    <input type="date" value="${date || today()}" class="line-date">
-    <input type="text" placeholder="Description of services" value="${desc}" class="line-desc">
-    <input type="text" placeholder="Notes / extras" value="${notes}" class="line-notes">
-    <input type="number" min="0" step="0.01" placeholder="0.00" value="${amount}" class="line-amount" oninput="updateInvTotal()">
-    <button class="remove-line" onclick="this.closest('.invoice-line').remove();updateInvTotal()">×</button>
+  div.className = 'monthly-day-row' + (isWeekend ? ' weekend-row' : '');
+  div.dataset.date = dateStr;
+  div.style.cssText = `display:grid;grid-template-columns:90px 110px 1fr auto;gap:6px;padding:5px 10px;border-bottom:1px solid var(--border);align-items:center;${isWeekend ? 'background:#fafbff;' : ''}`;
+
+  const dayEl = document.createElement('div');
+  dayEl.style.cssText = `font-size:12px;font-family:var(--mono);color:${isWeekend ? 'var(--accent)' : 'var(--text2)'}`;
+  dayEl.textContent = dayName;
+
+  // Amount with quick buttons on click
+  const amtWrap = document.createElement('div');
+  amtWrap.style.cssText = 'display:flex;align-items:center;gap:4px';
+  const amtInput = document.createElement('input');
+  amtInput.type = 'number'; amtInput.min = '0'; amtInput.step = '0.01';
+  amtInput.value = amount; amtInput.className = 'day-amount';
+  amtInput.style.cssText = 'width:80px;padding:4px 6px;font-family:var(--mono);font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text)';
+  amtInput.oninput = updateInvTotal;
+  // Colour coding
+  amtInput.addEventListener('input', function() {
+    this.style.color = parseFloat(this.value) === 0 ? 'var(--text3)' : parseFloat(this.value) < 200 ? 'var(--amber)' : 'var(--green)';
+  });
+  amtInput.style.color = amount === 0 ? 'var(--text3)' : amount < 200 ? 'var(--amber)' : 'var(--green)';
+  amtWrap.appendChild(amtInput);
+
+  // Note input
+  const noteInput = document.createElement('input');
+  noteInput.type = 'text'; noteInput.placeholder = 'Note (optional)';
+  noteInput.value = note; noteInput.className = 'day-note';
+  noteInput.style.cssText = 'padding:4px 8px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);width:100%';
+
+  // Quick action buttons
+  const actions = document.createElement('div');
+  actions.style.cssText = 'display:flex;gap:3px;flex-shrink:0';
+
+  const quickBtns = [
+    { label: '£200', val: () => setDayAmount(amtInput, 200) },
+    { label: '½', val: () => setDayAmount(amtInput, 100) },
+    { label: '£0', val: () => setDayAmount(amtInput, 0) },
+  ];
+  quickBtns.forEach(b => {
+    const btn = document.createElement('button');
+    btn.textContent = b.label;
+    btn.style.cssText = 'padding:2px 5px;font-size:10px;border:1px solid var(--border);background:var(--surface);border-radius:4px;cursor:pointer;color:var(--text3);font-family:var(--mono);white-space:nowrap';
+    btn.onclick = b.val;
+    actions.appendChild(btn);
+  });
+
+  // Add-on dropdown
+  const addonBtn = document.createElement('button');
+  addonBtn.textContent = '+ Extra';
+  addonBtn.style.cssText = 'padding:2px 5px;font-size:10px;border:1px solid var(--accent);background:var(--surface);border-radius:4px;cursor:pointer;color:var(--accent);white-space:nowrap';
+  addonBtn.onclick = () => showAddonMenu(amtInput, noteInput, addonBtn);
+  actions.appendChild(addonBtn);
+
+  div.appendChild(dayEl);
+  div.appendChild(amtWrap);
+  div.appendChild(noteInput);
+  div.appendChild(actions);
+  return div;
+}
+
+function setDayAmount(input, val) {
+  input.value = val;
+  input.style.color = val === 0 ? 'var(--text3)' : val < 200 ? 'var(--amber)' : 'var(--green)';
+  updateInvTotal();
+}
+
+function showAddonMenu(amtInput, noteInput, btn) {
+  // Remove any existing menu
+  document.querySelectorAll('.addon-menu').forEach(m => m.remove());
+  const menu = document.createElement('div');
+  menu.className = 'addon-menu';
+  menu.style.cssText = 'position:absolute;background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:8px;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,0.15);min-width:220px';
+
+  const addons = [
+    { label: 'Night flying', default: 100 },
+    { label: 'Exam / test fee', default: 175 },
+    { label: 'IMC / renewal', default: 150 },
+    { label: 'Ground school', default: 200 },
+    { label: 'Custom extra', default: 0 },
+  ];
+
+  addons.forEach(a => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0';
+    const lbl = document.createElement('span');
+    lbl.textContent = a.label;
+    lbl.style.cssText = 'flex:1;font-size:12px';
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.value = a.default; inp.min = '0';
+    inp.style.cssText = 'width:65px;padding:3px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);font-family:var(--mono)';
+    const addBtn = document.createElement('button');
+    addBtn.textContent = '+ Add';
+    addBtn.style.cssText = 'padding:3px 8px;font-size:11px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer';
+    addBtn.onclick = () => {
+      const extra = parseFloat(inp.value) || 0;
+      const current = parseFloat(amtInput.value) || 0;
+      amtInput.value = current + extra;
+      amtInput.style.color = 'var(--amber)';
+      const existingNote = noteInput.value;
+      noteInput.value = existingNote ? `${existingNote} + ${a.label} (£${extra})` : `${a.label} (£${extra})`;
+      updateInvTotal();
+      menu.remove();
+    };
+    row.appendChild(lbl); row.appendChild(inp); row.appendChild(addBtn);
+    menu.appendChild(row);
+  });
+
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '× Close';
+  closeBtn.style.cssText = 'margin-top:6px;width:100%;padding:4px;font-size:11px;background:none;border:1px solid var(--border);border-radius:4px;cursor:pointer;color:var(--text3)';
+  closeBtn.onclick = () => menu.remove();
+  menu.appendChild(closeBtn);
+
+  // Position near button
+  const rect = btn.getBoundingClientRect();
+  menu.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+  menu.style.left = Math.max(10, rect.left - 100) + 'px';
+  document.body.appendChild(menu);
+  setTimeout(() => document.addEventListener('click', function handler(e) {
+    if (!menu.contains(e.target) && e.target !== btn) { menu.remove(); document.removeEventListener('click', handler); }
+  }), 100);
+}
+
+function setAllDays(val) {
+  document.querySelectorAll('.monthly-day-row .day-amount').forEach(inp => {
+    inp.value = val;
+    inp.style.color = val === 0 ? 'var(--text3)' : 'var(--green)';
+  });
+  updateInvTotal();
+}
+
+function updateAllDefaultRates() {
+  const rate = parseFloat(document.getElementById('inv-default-rate').value) || 200;
+  document.querySelectorAll('.monthly-day-row .day-amount').forEach(inp => {
+    if (parseFloat(inp.value) === 200 || parseFloat(inp.value) === 0) {
+      // only update days that are at the old default or zero — don't touch customised ones
+    }
+  });
+}
+
+// ── AD-HOC LINES ────────────────────────────────────
+function getClientRates() {
+  const clientId = document.getElementById('inv-client').value;
+  const client = state.clients.find(c => c.id === clientId);
+  return {
+    day:  client?.rate     || 250,
+    half: Math.round((client?.rate || 250) / 2),
+    trip: client?.tripRate || 500,
+  };
+}
+
+function addAdhocLine(date = '', type = 'day', desc = '', amount = '') {
+  const rates = getClientRates();
+  const div = document.createElement('div');
+  div.style.cssText = 'display:grid;grid-template-columns:110px 140px 1fr 90px 36px;gap:6px;padding:7px 10px;border-bottom:1px solid var(--border);align-items:center';
+
+  const inputStyle = 'padding:5px 8px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);width:100%';
+
+  // Date
+  const dateInp = document.createElement('input');
+  dateInp.type = 'date'; dateInp.value = date || today();
+  dateInp.className = 'line-date'; dateInp.style.cssText = inputStyle;
+
+  // Type selector
+  const typeWrap = document.createElement('div');
+  typeWrap.style.cssText = 'display:flex;flex-direction:column;gap:3px';
+  const typeSelect = document.createElement('select');
+  typeSelect.style.cssText = inputStyle;
+  typeSelect.innerHTML = `
+    <option value="day">Full day (£${rates.day})</option>
+    <option value="half">Half day (£${rates.half})</option>
+    <option value="trip">Trip / private (£${rates.trip})</option>
+    <option value="hourly">Hourly (hrs × rate)</option>
+    <option value="fixed">Fixed amount</option>
   `;
-  document.getElementById('invoice-lines').appendChild(div);
+  typeSelect.value = type;
+
+  // Hourly sub-row
+  const hourlyRow = document.createElement('div');
+  hourlyRow.style.cssText = 'display:flex;gap:3px;align-items:center';
+  const hrsInp = document.createElement('input');
+  hrsInp.type = 'number'; hrsInp.min = '0'; hrsInp.step = '0.5'; hrsInp.placeholder = 'hrs';
+  hrsInp.style.cssText = 'width:46px;padding:3px 5px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--mono)';
+  const rateInp = document.createElement('input');
+  rateInp.type = 'number'; rateInp.min = '0'; rateInp.step = '1'; rateInp.placeholder = '£/hr';
+  rateInp.style.cssText = 'width:50px;padding:3px 5px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--mono)';
+  hourlyRow.appendChild(hrsInp);
+  const x = document.createElement('span'); x.textContent = '×'; x.style.cssText = 'font-size:11px;color:var(--text3)';
+  hourlyRow.appendChild(x);
+  hourlyRow.appendChild(rateInp);
+  hourlyRow.style.display = type === 'hourly' ? 'flex' : 'none';
+  typeWrap.appendChild(typeSelect);
+  typeWrap.appendChild(hourlyRow);
+
+  // Description
+  const descInp = document.createElement('input');
+  descInp.type = 'text'; descInp.placeholder = 'Description / notes';
+  descInp.value = desc; descInp.className = 'line-desc';
+  descInp.style.cssText = inputStyle;
+
+  // Amount — pre-fill based on type
+  const amtInp = document.createElement('input');
+  amtInp.type = 'number'; amtInp.min = '0'; amtInp.step = '0.01';
+  if (amount !== '') {
+    amtInp.value = amount;
+  } else {
+    amtInp.value = type === 'day' ? rates.day : type === 'half' ? rates.half : type === 'trip' ? rates.trip : '';
+  }
+  amtInp.className = 'line-amount';
+  amtInp.style.cssText = inputStyle + ';font-family:var(--mono);color:var(--green)';
+  amtInp.oninput = updateInvTotal;
+
+  // Remove button
+  const rmBtn = document.createElement('button');
+  rmBtn.textContent = '×';
+  rmBtn.style.cssText = 'background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;line-height:1;padding:2px';
+  rmBtn.onclick = () => { div.remove(); updateInvTotal(); };
+
+  // Type change logic
+  typeSelect.onchange = () => {
+    const t = typeSelect.value;
+    const r = getClientRates();
+    hourlyRow.style.display = t === 'hourly' ? 'flex' : 'none';
+    if (t === 'day')   { amtInp.value = r.day;  amtInp.readOnly = false; }
+    if (t === 'half')  { amtInp.value = r.half; amtInp.readOnly = false; }
+    if (t === 'trip')  { amtInp.value = r.trip; amtInp.readOnly = false; }
+    if (t === 'fixed') { amtInp.value = '';      amtInp.readOnly = false; amtInp.focus(); }
+    if (t === 'hourly'){ amtInp.value = '';      amtInp.readOnly = true; }
+    updateInvTotal();
+  };
+
+  // Hourly auto-calc
+  const calcHourly = () => {
+    const hrs = parseFloat(hrsInp.value) || 0;
+    const rate = parseFloat(rateInp.value) || 0;
+    amtInp.value = (hrs * rate).toFixed(2);
+    updateInvTotal();
+  };
+  hrsInp.oninput = calcHourly;
+  rateInp.oninput = calcHourly;
+
+  div.appendChild(dateInp);
+  div.appendChild(typeWrap);
+  div.appendChild(descInp);
+  div.appendChild(amtInp);
+  div.appendChild(rmBtn);
+  document.getElementById('adhoc-lines').appendChild(div);
+  updateInvTotal();
 }
 
 function updateInvTotal() {
-  const lines = document.querySelectorAll('.invoice-lines .line-amount');
   let total = 0;
-  lines.forEach(l => total += parseFloat(l.value) || 0);
+  if (invType === 'monthly') {
+    document.querySelectorAll('.monthly-day-row .day-amount').forEach(i => total += parseFloat(i.value) || 0);
+  } else {
+    document.querySelectorAll('#adhoc-lines .line-amount').forEach(i => total += parseFloat(i.value) || 0);
+  }
   document.getElementById('inv-total-display').textContent = fmt(total);
 }
 
-function populateClientDetails() {
-  const id = document.getElementById('inv-client').value;
-  const c = state.clients.find(c => c.id === id);
-  if (c) document.getElementById('inv-to').value = `${c.name}${c.email ? '  ' + c.email : ''}`;
+function collectInvoiceLines() {
+  const lines = [];
+  if (invType === 'monthly') {
+    document.querySelectorAll('.monthly-day-row').forEach(row => {
+      const amount = parseFloat(row.querySelector('.day-amount').value) || 0;
+      const note = row.querySelector('.day-note').value;
+      const dateStr = row.dataset.date;
+      const dayLabel = row.querySelector('div').textContent;
+      lines.push({ date: dateStr, desc: note || '', notes: '', amount });
+    });
+  } else {
+    document.querySelectorAll('#adhoc-lines > div').forEach(row => {
+      const typeEl = row.querySelector('select');
+      const type = typeEl ? typeEl.value : 'fixed';
+      lines.push({
+        date: row.querySelector('.line-date')?.value || '',
+        desc: row.querySelector('.line-desc')?.value || '',
+        notes: '',
+        amount: parseFloat(row.querySelector('.line-amount')?.value) || 0,
+        lineType: type,
+      });
+    });
+  }
+  return lines;
 }
 
 function saveInvoice() {
   const clientId = document.getElementById('inv-client').value;
   const client = state.clients.find(c => c.id === clientId);
-  const lines = [];
-  document.querySelectorAll('#invoice-lines .invoice-line').forEach(row => {
-    const amt = parseFloat(row.querySelector('.line-amount').value) || 0;
-    lines.push({
-      date: row.querySelector('.line-date').value,
-      desc: row.querySelector('.line-desc').value,
-      notes: row.querySelector('.line-notes').value,
-      amount: amt
-    });
-  });
-  const total = lines.reduce((s, l) => s + l.amount, 0);
   if (!clientId) { alert('Please select a client.'); return; }
-  if (lines.length === 0 || total === 0) { alert('Add at least one line item with an amount.'); return; }
+  const lines = collectInvoiceLines();
+  const total = lines.reduce((s, l) => s + l.amount, 0);
 
   const inv = {
     id: state.editingInvoiceId || Date.now().toString(),
@@ -1243,6 +1660,7 @@ function saveInvoice() {
     lines,
     total,
     notes: document.getElementById('inv-notes').value,
+    invType,
     status: 'unpaid',
     datePaid: null,
   };
@@ -1267,7 +1685,7 @@ function renderInvoices() {
   const filterClient = document.getElementById('inv-filter-client').value;
 
   let invs = [...state.invoices].sort((a, b) => b.number - a.number);
-  if (search) invs = invs.filter(i => i.clientName.toLowerCase().includes(search) || String(i.number).includes(search) || (i.to||'').toLowerCase().includes(search));
+  if (search) invs = invs.filter(i => i.clientName.toLowerCase().includes(search) || String(i.number).includes(search));
   if (filterStatus) invs = invs.filter(i => i.status === filterStatus);
   if (filterClient) invs = invs.filter(i => i.clientId === filterClient);
 
@@ -1275,7 +1693,7 @@ function renderInvoices() {
 
   const tbody = document.getElementById('inv-table-body');
   if (invs.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty"><div class="icon">◻</div><p>No invoices found</p><p class="hint">Click + New Invoice to create your first one</p></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty"><div class="icon">◻</div><p>No invoices found</p><p class="hint">Click + New Invoice to get started</p></div></td></tr>`;
     return;
   }
   tbody.innerHTML = invs.map(i => `
@@ -1283,7 +1701,7 @@ function renderInvoices() {
       <td class="mono primary">#${i.number}</td>
       <td>${fmtDate(i.date)}</td>
       <td class="primary">${i.clientName}</td>
-      <td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text3);font-size:12px">${i.lines.map(l=>l.desc).filter(Boolean).join(', ') || '—'}</td>
+      <td style="font-size:12px;color:var(--text3)">${i.lines ? i.lines.filter(l=>l.amount>0).length + ' day' + (i.lines.filter(l=>l.amount>0).length!==1?'s':'') : '—'}</td>
       <td class="green">${fmt(i.total)}</td>
       <td><span class="pill ${i.status==='paid'?'pill-green':i.status==='partial'?'pill-amber':'pill-red'}">${i.status}</span></td>
       <td>${i.datePaid ? fmtDate(i.datePaid) : '—'}</td>
@@ -1313,6 +1731,7 @@ function editInvoice(id) {
   const inv = state.invoices.find(i => i.id === id);
   if (!inv) return;
   state.editingInvoiceId = id;
+  weekendsShown = false;
   document.getElementById('modal-inv-title').textContent = `Edit Invoice #${inv.number}`;
   document.getElementById('inv-number').value = inv.number;
   document.getElementById('inv-date').value = inv.date;
@@ -1320,8 +1739,29 @@ function editInvoice(id) {
   document.getElementById('inv-client').value = inv.clientId;
   document.getElementById('inv-to').value = inv.to || '';
   document.getElementById('inv-notes').value = inv.notes || '';
-  document.getElementById('invoice-lines').innerHTML = '';
-  inv.lines.forEach(l => addInvoiceLine(l.date, l.desc, l.notes, l.amount));
+
+  const type = inv.invType || (inv.lines && inv.lines.length > 5 ? 'monthly' : 'adhoc');
+  setInvType(type);
+
+  if (type === 'monthly' && inv.lines && inv.lines.length > 0) {
+    // Set month from first line date
+    const firstDate = inv.lines[0].date;
+    document.getElementById('inv-month').value = firstDate.slice(0,7);
+    generateMonthlyLines();
+    // Now apply saved values
+    inv.lines.forEach(l => {
+      const row = document.querySelector(`.monthly-day-row[data-date="${l.date}"]`);
+      if (row) {
+        const amtInp = row.querySelector('.day-amount');
+        amtInp.value = l.amount;
+        amtInp.style.color = l.amount === 0 ? 'var(--text3)' : l.amount < 200 ? 'var(--amber)' : 'var(--green)';
+        row.querySelector('.day-note').value = l.desc || '';
+      }
+    });
+  } else {
+    document.getElementById('adhoc-lines').innerHTML = '';
+    (inv.lines || []).forEach(l => addAdhocLine(l.date, l.lineType || 'fixed', l.desc, l.amount));
+  }
   updateInvTotal();
   openModal('modal-invoice');
 }
@@ -1341,9 +1781,11 @@ function updateUnpaidBadge() {
   badge.style.display = count > 0 ? 'inline' : 'none';
 }
 
-function printInvoice() {
+function printCurrentInvoice() {
   saveInvoice();
-  const inv = state.invoices.find(i => i.id === (state.editingInvoiceId || state.invoices[state.invoices.length - 1]?.id));
+  const inv = state.editingInvoiceId
+    ? state.invoices.find(i => i.id === state.editingInvoiceId)
+    : state.invoices[state.invoices.length - 1];
   if (inv) viewPrintInvoice(inv.id);
 }
 
@@ -1351,64 +1793,114 @@ function viewPrintInvoice(id) {
   const inv = state.invoices.find(i => i.id === id);
   if (!inv) return;
   const s = state.settings;
-  const name = s.name || 'Tom Newell';
-  const trading = s.trading || 'Tom Newell Flight Training';
-  const addr = (s.address || '12, Monks Close\nDorchester-On-Thames\nWallingford, OX10 7JA').replace(/\n/g, '<br>');
-  const phone = s.phone || '07795188569';
-  const email = s.email || 'tnewell2@gmail.com';
-  const bank = s.bank || 'Barclays';
-  const accno = s.accno || '60506141';
-  const sort = s.sort || '20-26-82';
+  const name    = s.name    || 'Tom Newell';
+  const addr    = (s.address || '12, Monks Close\nDorchester-On-Thames\nWallingford, OX10 7JA').replace(/\n/g, '<br>');
+  const phone   = s.phone   || '07795188569';
+  const email   = s.email   || 'tnewell2@gmail.com';
+  const bank    = s.bank    || 'Barclays';
+  const accno   = s.accno   || '60506141';
+  const sort    = s.sort    || '20-26-82';
+
+  // Build client address block
+  const clientTo = (inv.to || inv.clientName).replace(/\n/g, '<br>');
 
   const win = window.open('', '_blank');
   win.document.write(`<!DOCTYPE html><html><head><title>Invoice #${inv.number}</title>
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
-    *{box-sizing:border-box;margin:0;padding:0} body{font-family:'DM Sans',sans-serif;color:#1a1a2e;background:#fff;padding:40px;font-size:13px}
-    .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px;padding-bottom:24px;border-bottom:2px solid #1a1a2e}
-    .brand h1{font-size:22px;font-weight:700;color:#1a1a2e} .brand .sub{color:#666;font-size:12px;margin-top:2px}
-    .brand address{font-style:normal;margin-top:10px;font-size:12px;color:#555;line-height:1.6}
-    .inv-meta{text-align:right} .inv-meta .inv-label{font-family:'Space Mono',monospace;font-size:22px;font-weight:700;letter-spacing:2px;color:#4f8ef7}
-    .inv-meta table{margin-top:10px;margin-left:auto} .inv-meta td{padding:2px 0 2px 16px;font-size:12px;color:#555}
-    .inv-meta td:first-child{color:#1a1a2e;font-weight:600;text-align:right}
-    .bill-to{margin-bottom:32px} .bill-to h3{font-size:10px;color:#888;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;font-family:'Space Mono',monospace}
-    .bill-to p{font-size:14px;font-weight:500}
-    table.lines{width:100%;border-collapse:collapse;margin-bottom:24px}
-    table.lines thead tr{background:#f5f5f5;border-bottom:2px solid #e0e0e0}
-    table.lines th{padding:10px 12px;text-align:left;font-size:10px;color:#888;letter-spacing:1.5px;text-transform:uppercase;font-family:'Space Mono',monospace;font-weight:400}
-    table.lines th:last-child{text-align:right} table.lines td{padding:10px 12px;border-bottom:1px solid #eee;font-size:13px;color:#333}
-    table.lines td:last-child{text-align:right;font-family:'Space Mono',monospace;font-weight:700;color:#1a1a2e}
-    .totals{display:flex;justify-content:flex-end;margin-bottom:32px}
-    .totals table td{padding:5px 0 5px 32px;font-size:14px} .totals td:first-child{color:#888}
-    .totals tr.total td{font-weight:700;font-size:18px;color:#4f8ef7;border-top:2px solid #1a1a2e;padding-top:10px}
-    .totals td:last-child{font-family:'Space Mono',monospace;text-align:right}
-    .footer{border-top:1px solid #e0e0e0;padding-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
-    .footer h4{font-size:10px;color:#888;letter-spacing:2px;text-transform:uppercase;font-family:'Space Mono',monospace;margin-bottom:6px}
-    .footer p{font-size:12px;color:#555;line-height:1.6}
-    .notes{background:#f9f9f9;border-left:3px solid #4f8ef7;padding:12px 16px;margin-bottom:24px;font-size:12px;color:#555}
-    @media print{body{padding:20px}}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'DM Sans',sans-serif;color:#111;background:#fff;padding:32px;font-size:13px}
+    .header{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px;padding-bottom:20px;border-bottom:2px solid #111}
+    .from h2{font-size:16px;font-weight:700} .from address{font-style:normal;margin-top:8px;font-size:12px;color:#444;line-height:1.7}
+    .inv-meta{text-align:right}
+    .inv-title{font-family:'Space Mono',monospace;font-size:26px;font-weight:700;letter-spacing:3px;color:#2563eb;margin-bottom:10px}
+    .inv-meta table{margin-left:auto;border-collapse:collapse}
+    .inv-meta td{padding:3px 0 3px 20px;font-size:12px}
+    .inv-meta td:first-child{color:#666;text-align:right;font-weight:500}
+    .inv-meta td:last-child{font-family:'Space Mono',monospace;font-weight:700;color:#111}
+    .bill-section{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px}
+    .bill-box h4{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:#999;font-family:'Space Mono',monospace;margin-bottom:6px}
+    .bill-box p{font-size:13px;font-weight:500;line-height:1.6}
+    table.lines{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:12px}
+    table.lines thead tr{background:#f8f9fa;border-bottom:2px solid #e5e7eb}
+    table.lines th{padding:8px 10px;text-align:left;font-size:9px;color:#9ca3af;letter-spacing:1.5px;text-transform:uppercase;font-family:'Space Mono',monospace;font-weight:400}
+    table.lines th.right{text-align:right}
+    table.lines td{padding:6px 10px;border-bottom:1px solid #f3f4f6;color:#374151}
+    table.lines td.amt{text-align:right;font-family:'Space Mono',monospace;font-weight:700;color:#111}
+    table.lines td.zero{color:#d1d5db}
+    table.lines tr.note-row td{padding:1px 10px 5px 10px;font-size:11px;color:#6b7280;font-style:italic;border-bottom:none}
+    .total-row{display:flex;justify-content:flex-end;margin-bottom:20px}
+    .total-box{background:#f8f9fa;border:2px solid #111;border-radius:8px;padding:12px 20px;text-align:right}
+    .total-box .total-label{font-size:10px;color:#6b7280;letter-spacing:2px;text-transform:uppercase;font-family:'Space Mono',monospace}
+    .total-box .total-amt{font-family:'Space Mono',monospace;font-size:24px;font-weight:700;color:#2563eb;margin-top:2px}
+    .footer-note{background:#f9fafb;border-left:3px solid #2563eb;padding:10px 14px;margin-bottom:20px;font-size:12px;color:#4b5563;font-style:italic}
+    .footer{display:grid;grid-template-columns:1fr 1fr;gap:20px;border-top:1px solid #e5e7eb;padding-top:16px}
+    .footer h4{font-size:9px;color:#9ca3af;letter-spacing:2px;text-transform:uppercase;font-family:'Space Mono',monospace;margin-bottom:6px}
+    .footer p{font-size:12px;color:#4b5563;line-height:1.7}
+    .contact-line{margin-top:16px;font-size:11px;color:#9ca3af;text-align:center;border-top:1px solid #f3f4f6;padding-top:12px}
+    @media print{body{padding:16px}@page{margin:15mm}}
   </style></head><body>
+
   <div class="header">
-    <div class="brand"><h1>${trading}</h1><div class="sub">${name}</div><address>${addr}<br>${phone} | ${email}</address></div>
+    <div class="from">
+      <h2>${name}</h2>
+      <address>${addr}<br>${phone}<br>${email}</address>
+    </div>
     <div class="inv-meta">
-      <div class="inv-label">INVOICE</div>
-      <table><tr><td>Invoice No.</td><td><strong>#${inv.number}</strong></td></tr>
-      <tr><td>Date</td><td>${fmtDate(inv.date)}</td></tr>
-      <tr><td>Due</td><td>${inv.due ? fmtDate(inv.due) : 'On receipt'}</td></tr></table>
+      <div class="inv-title">INVOICE</div>
+      <table>
+        <tr><td>Invoice No.</td><td>#${inv.number}</td></tr>
+        <tr><td>Invoice Date</td><td>${fmtDate(inv.date)}</td></tr>
+        <tr><td>Payment Due</td><td>${inv.due ? fmtDate(inv.due) : 'On receipt'}</td></tr>
+        <tr><td>Customer ID</td><td>${inv.clientId || '—'}</td></tr>
+      </table>
     </div>
   </div>
-  <div class="bill-to"><h3>Invoice To</h3><p>${inv.to || inv.clientName}</p></div>
-  <table class="lines">
-    <thead><tr><th>Date</th><th>Description of Services</th><th>Notes</th><th>Amount</th></tr></thead>
-    <tbody>${inv.lines.map(l => `<tr><td>${l.date ? fmtDate(l.date) : ''}</td><td>${l.desc || ''}</td><td style="color:#888;font-size:12px">${l.notes || ''}</td><td>£${parseFloat(l.amount||0).toFixed(2)}</td></tr>`).join('')}</tbody>
-  </table>
-  <div class="totals"><table><tr class="total"><td>TOTAL DUE</td><td>£${inv.total.toFixed(2)}</td></tr></table></div>
-  ${inv.notes ? `<div class="notes">${inv.notes}</div>` : ''}
-  <div class="footer">
-    <div><h4>Payment Details</h4><p>Bank: ${bank}<br>Account: ${accno}<br>Sort Code: ${sort}<br>Reference: Invoice #${inv.number}</p></div>
-    <div><h4>Contact</h4><p>${name}<br>${phone}<br>${email}</p></div>
+
+  <div class="bill-section">
+    <div class="bill-box">
+      <h4>Invoice To</h4>
+      <p>${clientTo}</p>
+    </div>
   </div>
-  <script>window.onload=()=>window.print()<\/script></body></html>`);
+
+  <table class="lines">
+    <thead><tr><th>Date</th><th>Description / Notes</th><th class="right">Amount</th></tr></thead>
+    <tbody>
+      ${inv.lines.map(l => {
+        const isZero = l.amount === 0;
+        return `<tr>
+          <td style="font-family:'Space Mono',monospace;font-size:11px;white-space:nowrap">${l.date ? fmtDate(l.date) : ''}</td>
+          <td style="color:${isZero ? '#9ca3af' : '#111'}">${l.desc || (isZero ? '' : 'Professional services')}</td>
+          <td class="amt ${isZero ? 'zero' : ''}">£${parseFloat(l.amount||0).toFixed(2)}</td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>
+
+  <div class="total-row">
+    <div class="total-box">
+      <div class="total-label">Total Due</div>
+      <div class="total-amt">£${inv.total.toFixed(2)}</div>
+    </div>
+  </div>
+
+  ${inv.notes ? `<div class="footer-note">${inv.notes}</div>` : ''}
+
+  <div class="footer">
+    <div>
+      <h4>Payment Details</h4>
+      <p>Bank: ${bank}<br>Account Number: ${accno}<br>Sort Code: ${sort}<br>Reference: Invoice #${inv.number}</p>
+    </div>
+    <div>
+      <h4>Contact</h4>
+      <p>${name}<br>${phone}<br>${email}</p>
+    </div>
+  </div>
+  <div class="contact-line">If you have any questions about this invoice, please contact ${name} — ${phone} | ${email}</div>
+
+  <script>window.onload=()=>window.print()<\/script>
+  </body></html>`);
   win.document.close();
 }
 
@@ -1736,7 +2228,8 @@ function renderClientList() {
     <div class="client-row">
       <div class="cid">${c.id}</div>
       <div class="cname">${c.name}</div>
-      <div class="crate">${c.rate ? '£' + c.rate : '—'}</div>
+      <div class="crate" title="Day rate">${c.rate ? '£' + c.rate : '—'}</div>
+      <div class="crate" style="color:var(--purple)" title="Trip rate">${c.tripRate ? '£' + c.tripRate : '—'}</div>
       <button class="btn btn-xs btn-ghost" onclick="editClient(${i})">Edit</button>
       <button class="btn btn-xs btn-danger" onclick="deleteClient(${i})">×</button>
     </div>`).join('');
@@ -1747,7 +2240,8 @@ function openAddClient() {
   document.getElementById('c-name').value = '';
   document.getElementById('c-address').value = '';
   document.getElementById('c-email').value = '';
-  document.getElementById('c-rate').value = '';
+  document.getElementById('c-rate').value = '250';
+  document.getElementById('c-trip-rate').value = '500';
   document.getElementById('c-id').dataset.editIdx = '';
   openModal('modal-client');
 }
@@ -1759,6 +2253,7 @@ function editClient(idx) {
   document.getElementById('c-address').value = c.address || '';
   document.getElementById('c-email').value = c.email || '';
   document.getElementById('c-rate').value = c.rate || '';
+  document.getElementById('c-trip-rate').value = c.tripRate || '500';
   document.getElementById('c-id').dataset.editIdx = idx;
   openModal('modal-client');
 }
@@ -1771,7 +2266,8 @@ function saveClient() {
     id, name,
     address: document.getElementById('c-address').value,
     email: document.getElementById('c-email').value,
-    rate: parseFloat(document.getElementById('c-rate').value) || 200,
+    rate:     parseFloat(document.getElementById('c-rate').value)      || 250,
+    tripRate: parseFloat(document.getElementById('c-trip-rate').value) || 500,
   };
   const editIdx = document.getElementById('c-id').dataset.editIdx;
   if (editIdx !== '') state.clients[parseInt(editIdx)] = client;
