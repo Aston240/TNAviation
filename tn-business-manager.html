@@ -368,6 +368,7 @@ textarea { resize: vertical; min-height: 80px; }
         </div>
         <div style="display:flex;gap:8px">
           <button class="btn btn-ghost" onclick="openImportModal()">↑ Import CSV</button>
+          <button class="btn btn-ghost" onclick="openPersonalExpense()" style="border-color:var(--amber);color:var(--amber)">+ Personal Expense</button>
           <button class="btn btn-primary" onclick="openNewTransaction()">+ Add Transaction</button>
         </div>
       </div>
@@ -397,7 +398,7 @@ textarea { resize: vertical; min-height: 80px; }
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>Date</th><th>Payee</th><th>Category / HMRC</th><th>Income</th><th>Expense</th><th>Quarter</th><th>Actions</th>
+            <th>Date</th><th>Payee</th><th>Category / HMRC</th><th>Notes</th><th>Income</th><th>Expense</th><th>Rcpt</th><th>Actions</th>
           </tr></thead>
           <tbody id="txn-table-body"></tbody>
         </table>
@@ -2369,9 +2370,9 @@ function renderTransactions() {
       : `<div style="font-size:13px;color:var(--text);cursor:pointer">${t.categoryName}</div>${t.hmrcCat ? `<div style="font-size:10px;color:var(--text3);margin-top:1px">${t.hmrcCat}</div>` : ''}`;
 
     return `<tr>
-      <td class="mono">${fmtDate(t.date)}</td>
-      <td class="primary" style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.payee}</td>
-      <td style="min-width:180px;position:relative" id="cat-cell-${t.id}">
+      <td class="mono" style="white-space:nowrap">${fmtDate(t.date)}</td>
+      <td class="primary" style="max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${t.payee}">${t.payee}</td>
+      <td style="min-width:170px;position:relative" id="cat-cell-${t.id}">
         <div onclick="openInlineCatPicker('${t.id}', this)" style="cursor:pointer;padding:2px 0">${catDisplay}</div>
         <select class="inline-cat-select" data-txnid="${t.id}"
           style="display:none;position:absolute;top:0;left:0;width:240px;z-index:50;padding:6px 8px;font-size:12px;background:var(--surface);border:1px solid var(--accent);border-radius:7px;box-shadow:0 4px 16px rgba(0,0,0,0.12);color:var(--text)"
@@ -2380,9 +2381,25 @@ function renderTransactions() {
           ${optionsHTML}
         </select>
       </td>
+      <td style="min-width:160px;max-width:200px" id="note-cell-${t.id}">
+        <div onclick="openInlineNote('${t.id}')" style="cursor:pointer;min-height:20px;font-size:12px;color:${t.userNote ? 'var(--text2)' : 'var(--text3)'}">
+          ${t.userNote ? t.userNote : '<span style="opacity:0.5">+ add note</span>'}
+        </div>
+        <input type="text" class="inline-note-input" data-txnid="${t.id}"
+          value="${(t.userNote||'').replace(/"/g,'&quot;')}"
+          placeholder="What was this for?"
+          style="display:none;width:100%;padding:4px 6px;font-size:12px;background:var(--surface2);border:1px solid var(--accent);border-radius:5px;color:var(--text)"
+          onblur="saveInlineNote('${t.id}', this)"
+          onkeydown="if(event.key==='Enter')this.blur()">
+      </td>
       <td class="${t.type==='income'?'green':''} mono">${t.type==='income'?fmt(t.amount):''}</td>
       <td class="${t.type==='expense'?'red':''} mono">${t.type==='expense'?fmt(t.amount):''}</td>
-      <td><span class="pill pill-grey">${t.quarter||'—'}</span></td>
+      <td style="text-align:center">
+        ${t.receiptUrl
+          ? `<a href="${t.receiptUrl}" target="_blank" title="View receipt" style="font-size:16px;text-decoration:none">📎</a>`
+          : `<button onclick="uploadReceipt('${t.id}')" title="Attach receipt" style="background:none;border:none;cursor:pointer;font-size:14px;color:var(--text3);padding:0">📎</button>`
+        }
+      </td>
       <td>
         <div style="display:flex;gap:4px">
           <button class="btn btn-xs btn-ghost" onclick="editTransaction('${t.id}')">Edit</button>
@@ -2431,6 +2448,125 @@ function applyInlineCat(txnId, selectEl) {
   saveState();
   renderTransactions();
   renderDashboard();
+}
+
+// ── INLINE NOTES ─────────────────────────────────────────────
+function openInlineNote(txnId) {
+  const cell = document.getElementById('note-cell-' + txnId);
+  if (!cell) return;
+  cell.querySelector('div').style.display = 'none';
+  const inp = cell.querySelector('.inline-note-input');
+  inp.style.display = 'block';
+  inp.focus();
+  inp.select();
+}
+
+function saveInlineNote(txnId, inputEl) {
+  const t = state.transactions.find(x => x.id === txnId);
+  if (!t) return;
+  t.userNote = inputEl.value.trim();
+  saveState();
+  // Update cell without full re-render
+  const cell = document.getElementById('note-cell-' + txnId);
+  if (cell) {
+    const div = cell.querySelector('div');
+    div.textContent = t.userNote || '';
+    div.innerHTML = t.userNote
+      ? t.userNote
+      : '<span style="opacity:0.5">+ add note</span>';
+    div.style.color = t.userNote ? 'var(--text2)' : 'var(--text3)';
+    div.style.display = '';
+    inputEl.style.display = 'none';
+  }
+}
+
+// ── RECEIPT UPLOAD ────────────────────────────────────────────
+function uploadReceipt(txnId) {
+  const sheetsUrl = SHEETS_URL || DB.load('sheets_url', '');
+  if (!sheetsUrl) {
+    alert('Please set up your Google Sheets Script URL in Settings → Data first.');
+    return;
+  }
+  const t = state.transactions.find(x => x.id === txnId);
+  if (!t) return;
+
+  // Create a hidden file input and trigger it
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*,application/pdf';
+  inp.onchange = async () => {
+    const file = inp.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { alert('File too large — max 5MB.'); return; }
+
+    // Show uploading state
+    const btn = document.querySelector(`button[onclick="uploadReceipt('${txnId}')"]`);
+    if (btn) btn.textContent = '⟳';
+
+    // Convert to base64
+    const base64 = await new Promise((res, rej) => {
+      const reader = new FileReader();
+      reader.onload = () => res(reader.result.split(',')[1]);
+      reader.onerror = rej;
+      reader.readAsDataURL(file);
+    });
+
+    const ty = currentTaxYear();
+    const payload = {
+      action:    'uploadReceipt',
+      txnId,
+      fileName:  `${t.date}_${t.payee.replace(/[^a-z0-9]/gi,'_').slice(0,30)}_${txnId.slice(-6)}.${file.name.split('.').pop()}`,
+      mimeType:  file.type,
+      base64,
+      taxYear:   `${ty}-${ty+1}`,
+      txnDate:   t.date,
+      txnPayee:  t.payee,
+      txnAmount: t.amount,
+    };
+
+    try {
+      const res = await fetch(sheetsUrl, {
+        method:  'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body:    JSON.stringify(payload),
+      });
+      const result = await res.json();
+      if (result.status === 'ok' && result.url) {
+        t.receiptUrl = result.url;
+        saveState();
+        renderTransactions();
+      } else {
+        alert('Upload failed: ' + (result.message || 'Unknown error'));
+        if (btn) btn.textContent = '📎';
+      }
+    } catch(e) {
+      alert('Upload error — check your internet connection.\n' + e.message);
+      if (btn) btn.textContent = '📎';
+    }
+  };
+  inp.click();
+}
+
+// ── PERSONAL EXPENSE QUICK-ADD ────────────────────────────────
+function openPersonalExpense() {
+  state.editingTxnId = null;
+  document.getElementById('modal-txn-title').textContent = '+ Personal / Cash Expense';
+  document.getElementById('txn-date').value = today();
+  document.getElementById('txn-type').value = 'expense';
+  document.getElementById('txn-payee').value = '';
+  document.getElementById('txn-amount').value = '';
+  document.getElementById('txn-notes').value = '';
+  document.getElementById('txn-receipt').value = 'yes';
+  const sel = document.getElementById('txn-link-invoice');
+  sel.innerHTML = '<option value="">None</option>';
+  document.getElementById('txn-link-invoice-field').style.display = 'none';
+  document.getElementById('txn-hmrc-display').style.display = 'none';
+  populateCategorySelect('expense');
+  document.getElementById('txn-category').value = '';
+  // Add a note at top of modal
+  document.getElementById('modal-txn-title').innerHTML =
+    '+ Personal / Cash Expense <span style="font-size:11px;font-weight:400;color:var(--amber);margin-left:8px">Not on business bank account</span>';
+  openModal('modal-transaction');
 }
 
 function editTransaction(id) {
