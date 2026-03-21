@@ -289,6 +289,7 @@ textarea { resize: vertical; min-height: 80px; }
   <div class="topbar">
     <div class="brand">TN <span>//</span> Business Manager</div>
     <div class="tax-year" id="tax-year-label">Tax Year 2025–26</div>
+    <div id="sync-status" style="font-family:var(--mono);font-size:11px;padding:4px 10px;border-radius:5px;border:1px solid var(--border);color:var(--text3)">◌ Local</div>
     <button class="lock-btn" onclick="lockApp()">⎋ Lock</button>
   </div>
   <div class="nav">
@@ -472,10 +473,15 @@ Wallingford, OX10 7JA</textarea></div>
         <div class="settings-section">
           <h3>Data</h3>
           <div style="display:flex;flex-direction:column;gap:10px">
-            <button class="btn btn-ghost btn-sm" onclick="exportData()">↓ Export All Data (JSON)</button>
-            <button class="btn btn-ghost btn-sm" onclick="importDataFile()">↑ Import Data (JSON)</button>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:4px">
+              Cloud sync: <span id="settings-bin-id" style="font-family:var(--mono);font-size:11px;color:var(--accent)">checking...</span>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="pushToBin()">⟳ Sync to Cloud Now</button>
+            <button class="btn btn-ghost btn-sm" onclick="loadFromBin().then(()=>initApp())">↓ Pull Latest from Cloud</button>
+            <button class="btn btn-ghost btn-sm" onclick="exportData()">↓ Export Backup (JSON)</button>
+            <button class="btn btn-ghost btn-sm" onclick="importDataFile()">↑ Import Backup (JSON)</button>
             <input type="file" id="import-file" accept=".json" style="display:none" onchange="loadImportFile(event)">
-            <div style="font-size:11px;color:var(--text3);margin-top:8px">Export regularly as a backup. Data is stored in your browser's localStorage.</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:4px">Data auto-syncs to JSONbin cloud on every save. localStorage is kept as offline backup.</div>
           </div>
         </div>
       </div>
@@ -683,12 +689,173 @@ Wallingford, OX10 7JA</textarea></div>
 
 <script>
 // ══════════════════════════════════════════════════════
-// DATA LAYER
+// DATA LAYER — localStorage + JSONbin.io cloud sync
 // ══════════════════════════════════════════════════════
 const DB = {
   save(key, val) { try { localStorage.setItem('tnbm_' + key, JSON.stringify(val)); } catch(e) {} },
   load(key, def) { try { const v = localStorage.getItem('tnbm_' + key); return v ? JSON.parse(v) : def; } catch(e) { return def; } }
 };
+
+// JSONbin config — stored in localStorage so it survives page reloads
+const JSONBIN_API = 'https://api.jsonbin.io/v3';
+const MASTER_KEY  = '$2a$10$wjZldGseV25iurze/grlbOQ1ZxUVCugh.kmmRH3LOo3zEiUF4RKPS';
+
+function getBinId()      { return DB.load('jsonbin_id', null); }
+function setBinId(id)    { DB.save('jsonbin_id', id); }
+
+let syncTimer = null;
+let syncPending = false;
+
+function setSyncStatus(status) {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  const map = {
+    synced:  { text: '✓ Synced',   bg: '#ecfdf5', color: '#065f46', border: '#6ee7b7' },
+    syncing: { text: '⟳ Syncing',  bg: '#eff6ff', color: '#1e40af', border: '#93c5fd' },
+    offline: { text: '⚠ Offline',  bg: '#fffbeb', color: '#92400e', border: '#fcd34d' },
+    error:   { text: '✕ Sync err', bg: '#fee2e2', color: '#991b1b', border: '#fca5a5' },
+    local:   { text: '◌ Local',    bg: 'transparent', color: 'var(--text3)', border: 'var(--border)' },
+  };
+  const s = map[status] || map.local;
+  el.textContent = s.text;
+  el.style.background = s.bg;
+  el.style.color = s.color;
+  el.style.borderColor = s.border;
+}
+
+// Build the full data payload to push to JSONbin
+function buildPayload() {
+  return {
+    invoices:       state.invoices,
+    transactions:   state.transactions,
+    clients:        state.clients,
+    settings:       state.settings,
+    nextInvoiceNum: state.nextInvoiceNum,
+    mtdSubmitted:   getMTDSubmittedMap(),
+    updatedAt:      new Date().toISOString(),
+  };
+}
+
+function getMTDSubmittedMap() {
+  const map = {};
+  for (let k in localStorage) {
+    if (k.startsWith('tnbm_mtd_submitted_')) {
+      map[k.replace('tnbm_', '')] = JSON.parse(localStorage.getItem(k));
+    }
+  }
+  return map;
+}
+
+function applyPayload(data) {
+  if (!data) return;
+  if (data.invoices)       state.invoices       = data.invoices;
+  if (data.transactions)   state.transactions   = data.transactions;
+  if (data.clients)        state.clients        = data.clients;
+  if (data.settings)       state.settings       = data.settings;
+  if (data.nextInvoiceNum) state.nextInvoiceNum = data.nextInvoiceNum;
+  if (data.mtdSubmitted) {
+    Object.entries(data.mtdSubmitted).forEach(([k, v]) => DB.save(k, v));
+  }
+  // Mirror to localStorage as offline backup
+  DB.save('invoices',       state.invoices);
+  DB.save('transactions',   state.transactions);
+  DB.save('clients',        state.clients);
+  DB.save('settings',       state.settings);
+  DB.save('nextInvoiceNum', state.nextInvoiceNum);
+}
+
+// Create a new bin on first use
+async function createBin() {
+  setSyncStatus('syncing');
+  try {
+    const res = await fetch(`${JSONBIN_API}/b`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Master-Key': MASTER_KEY,
+        'X-Bin-Name':   'TN-Business-Manager',
+        'X-Bin-Private':'true',
+      },
+      body: JSON.stringify(buildPayload()),
+    });
+    if (!res.ok) throw new Error('Create failed: ' + res.status);
+    const json = await res.json();
+    const id = json.metadata?.id;
+    if (!id) throw new Error('No bin ID returned');
+    setBinId(id);
+    setSyncStatus('synced');
+    return id;
+  } catch(e) {
+    console.error('JSONbin create error:', e);
+    setSyncStatus('error');
+    return null;
+  }
+}
+
+// Load data from bin
+async function loadFromBin() {
+  const id = getBinId();
+  if (!id) return false;
+  setSyncStatus('syncing');
+  try {
+    const res = await fetch(`${JSONBIN_API}/b/${id}/latest`, {
+      headers: { 'X-Master-Key': MASTER_KEY }
+    });
+    if (!res.ok) throw new Error('Load failed: ' + res.status);
+    const json = await res.json();
+    applyPayload(json.record);
+    setSyncStatus('synced');
+    return true;
+  } catch(e) {
+    console.error('JSONbin load error:', e);
+    setSyncStatus('offline');
+    return false;
+  }
+}
+
+// Push data to bin (debounced — waits 1.5s after last save)
+async function pushToBin() {
+  const id = getBinId();
+  if (!id) {
+    // First time — create the bin
+    await createBin();
+    return;
+  }
+  setSyncStatus('syncing');
+  try {
+    const res = await fetch(`${JSONBIN_API}/b/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Master-Key': MASTER_KEY,
+      },
+      body: JSON.stringify(buildPayload()),
+    });
+    if (!res.ok) throw new Error('Push failed: ' + res.status);
+    setSyncStatus('synced');
+    syncPending = false;
+  } catch(e) {
+    console.error('JSONbin push error:', e);
+    setSyncStatus('error');
+  }
+}
+
+function debouncedSync() {
+  syncPending = true;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => { if (syncPending) pushToBin(); }, 1500);
+}
+
+function saveState() {
+  // Always save to localStorage first (instant, offline-safe)
+  DB.save('invoices',       state.invoices);
+  DB.save('transactions',   state.transactions);
+  DB.save('clients',        state.clients);
+  DB.save('settings',       state.settings);
+  DB.save('nextInvoiceNum', state.nextInvoiceNum);
+  // Then sync to cloud (debounced)
+  debouncedSync();
+}
 
 // Default password hash (tnfly2025)
 const DEFAULT_HASH = 'd8c69e263c811509ff4a34f0d4726c5fdeace40d123d8eca0baee47035b883d5';
@@ -781,6 +948,10 @@ async function attemptLogin() {
   if (hash === stored) {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
+    setSyncStatus('syncing');
+    // Try to load latest data from cloud, fall back to localStorage
+    const loaded = await loadFromBin();
+    if (!loaded) setSyncStatus(getBinId() ? 'offline' : 'local');
     initApp();
   } else {
     document.getElementById('login-err').textContent = 'Incorrect password. Try again.';
@@ -825,6 +996,12 @@ function initApp() {
   renderMTD();
   renderClientList();
   updateUnpaidBadge();
+  // Show bin ID in settings
+  const binEl = document.getElementById('settings-bin-id');
+  if (binEl) {
+    const id = getBinId();
+    binEl.textContent = id ? id : 'Not yet created — save anything to initialise';
+  }
 }
 
 function showTab(tab) {
