@@ -1119,11 +1119,13 @@ async function attemptLogin() {
       setSyncStatus('syncing');
       loadFromBin().then(loaded => {
         if (loaded) {
-          // Cloud data loaded — re-render all panels
+          // Cloud data loaded — paint dashboard first, then rest
           renderDashboard();
-          renderInvoices();
-          renderTransactions();
-          renderMTD();
+          requestAnimationFrame(() => {
+            renderInvoices();
+            renderTransactions();
+            renderMTD();
+          });
         } else {
           setSyncStatus(getBinId() ? 'offline' : 'local');
         }
@@ -1183,18 +1185,22 @@ async function changePassword() {
 function initApp() {
   loadSettings();
   populateClientSelects();
-  renderDashboard();
-  renderInvoices();
-  renderTransactions();
-  renderMTD();
-  renderClientList();
-  renderCategoryList();
   updateUnpaidBadge();
-  const binEl = document.getElementById('settings-bin-id');
-  if (binEl) {
-    const id = getBinId();
-    binEl.textContent = id ? id : 'Not yet created — save anything to initialise';
-  }
+  // Render dashboard immediately — paint it first before anything else
+  renderDashboard();
+  // Defer the heavier renders so the dashboard is visible straight away
+  requestAnimationFrame(() => {
+    renderInvoices();
+    renderTransactions();
+    renderMTD();
+    renderClientList();
+    renderCategoryList();
+    const binEl = document.getElementById('settings-bin-id');
+    if (binEl) {
+      const id = getBinId();
+      binEl.textContent = id ? id : 'Not yet created — save anything to initialise';
+    }
+  });
 }
 
 function showTab(tab) {
