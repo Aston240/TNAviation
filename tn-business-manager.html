@@ -484,6 +484,10 @@ Wallingford, OX10 7JA</textarea></div>
             <div style="font-size:12px;color:var(--text2);margin-bottom:4px">
               Cloud sync: <span id="settings-bin-id" style="font-family:var(--mono);font-size:11px;color:var(--accent)">checking...</span>
             </div>
+            <div class="field">
+              <label>JSONbin ID (copy this — needed if you switch browsers)</label>
+              <input type="text" id="s-bin-id-input" placeholder="Will appear after first save" readonly style="font-family:var(--mono);font-size:12px;cursor:pointer" onclick="this.select()" title="Click to select all">
+            </div>
             <button class="btn btn-ghost btn-sm" onclick="pushToBin()">⟳ Sync to Cloud Now</button>
             <button class="btn btn-ghost btn-sm" onclick="loadFromBin().then(()=>initApp())">↓ Pull Latest from Cloud</button>
             <button class="btn btn-ghost btn-sm" onclick="exportData()">↓ Export Backup (JSON)</button>
@@ -491,7 +495,7 @@ Wallingford, OX10 7JA</textarea></div>
             <button class="btn btn-ghost btn-sm" onclick="importCategoriesFile()">↑ Import Categories (JSON)</button>
             <input type="file" id="import-file" accept=".json" style="display:none" onchange="loadImportFile(event)">
             <input type="file" id="import-categories-file" accept=".json" style="display:none" onchange="loadCategoriesFile(event)">
-            <div style="font-size:11px;color:var(--text3);margin-top:4px">Data auto-syncs to JSONbin cloud on every save. localStorage is kept as offline backup.</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:4px">Data auto-syncs to JSONbin cloud on every save. Copy your JSONbin ID above and keep it safe — paste it into the HTML file's HARDCODED_BIN_ID if you ever lose it.</div>
           </div>
         </div>
       </div>
@@ -798,9 +802,17 @@ const DB = {
 // JSONbin config — stored in localStorage so it survives page reloads
 const JSONBIN_API = 'https://api.jsonbin.io/v3';
 const MASTER_KEY  = '$2a$10$wjZldGseV25iurze/grlbOQ1ZxUVCugh.kmmRH3LOo3zEiUF4RKPS';
+// Fallback bin ID — set this once you know your bin ID so any browser can find it
+const HARDCODED_BIN_ID = '';
 
-function getBinId()      { return DB.load('jsonbin_id', null); }
-function setBinId(id)    { DB.save('jsonbin_id', id); }
+function getBinId()   { return DB.load('jsonbin_id', null) || HARDCODED_BIN_ID || null; }
+function setBinId(id) {
+  DB.save('jsonbin_id', id);
+  const binInput = document.getElementById('s-bin-id-input');
+  const binEl = document.getElementById('settings-bin-id');
+  if (binInput) binInput.value = id;
+  if (binEl) binEl.textContent = id;
+}
 
 let syncTimer = null;
 let syncPending = false;
@@ -1111,34 +1123,24 @@ async function attemptLogin() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
 
-    const hasLocalData = DB.load('invoices', null) !== null;
+    // Always render immediately with whatever is in localStorage (may be empty)
+    initApp();
 
-    if (hasLocalData) {
-      // Have local data — render immediately, then silently update from cloud
-      initApp();
-      setSyncStatus('syncing');
-      loadFromBin().then(loaded => {
-        if (loaded) {
-          // Cloud data loaded — paint dashboard first, then rest
-          renderDashboard();
-          requestAnimationFrame(() => {
-            renderInvoices();
-            renderTransactions();
-            renderMTD();
-          });
-        } else {
-          setSyncStatus(getBinId() ? 'offline' : 'local');
-        }
-      });
-    } else {
-      // No local data — show loading, wait for cloud
-      setSyncStatus('syncing');
-      showDashboardLoading(true);
-      const loaded = await loadFromBin();
-      showDashboardLoading(false);
-      if (!loaded) setSyncStatus('local');
-      initApp();
-    }
+    // Then load from cloud and re-render if we got data
+    setSyncStatus('syncing');
+    loadFromBin().then(loaded => {
+      if (loaded) {
+        renderDashboard();
+        requestAnimationFrame(() => {
+          renderInvoices();
+          renderTransactions();
+          renderMTD();
+          updateUnpaidBadge();
+        });
+      } else {
+        setSyncStatus(getBinId() ? 'offline' : 'local');
+      }
+    });
   } else {
     document.getElementById('login-err').textContent = 'Incorrect password. Try again.';
     document.getElementById('pin-input').value = '';
@@ -1195,11 +1197,11 @@ function initApp() {
     renderMTD();
     renderClientList();
     renderCategoryList();
+    const id = getBinId();
     const binEl = document.getElementById('settings-bin-id');
-    if (binEl) {
-      const id = getBinId();
-      binEl.textContent = id ? id : 'Not yet created — save anything to initialise';
-    }
+    const binInput = document.getElementById('s-bin-id-input');
+    if (binEl) binEl.textContent = id ? id : 'Not yet created — save anything to initialise';
+    if (binInput) binInput.value = id || '';
   });
 }
 
