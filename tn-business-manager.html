@@ -3065,11 +3065,23 @@ function processCSVImport() {
   if (!state.csvRows.length) { alert('No CSV data loaded.'); return; }
   const bank = document.getElementById('csv-bank-source').value;
   const headers = state.csvHeaders || [];
-  let imported = 0, skipped = 0, matched = 0;
+  let imported = 0, skipped = 0, matched = 0, duplicates = 0;
+
+  // Build a set of fingerprints from existing transactions
+  // Fingerprint = date|amount|first30charsOfPayee (lowercase)
+  const existing = new Set(
+    state.transactions.map(t =>
+      `${t.date}|${Math.abs(t.amount).toFixed(2)}|${(t.payee||'').toLowerCase().slice(0,30)}`
+    )
+  );
 
   state.csvRows.forEach(row => {
     const { date, name, amount } = parseRow(row, headers, bank);
     if (!date || !name || !amount) { skipped++; return; }
+
+    // Check for duplicate
+    const fingerprint = `${date}|${Math.abs(amount).toFixed(2)}|${name.toLowerCase().slice(0,30)}`;
+    if (existing.has(fingerprint)) { duplicates++; return; }
 
     // Auto-match category from payee name
     const cat = autoMatchCategory(name);
@@ -3091,6 +3103,7 @@ function processCSVImport() {
     };
     if (cat) matched++;
     state.transactions.push(txn);
+    existing.add(fingerprint); // prevent dupes within same import file too
     imported++;
   });
 
@@ -3099,7 +3112,12 @@ function processCSVImport() {
   renderDashboard();
   closeModal('modal-import');
   const uncategorised = imported - matched;
-  alert(`✓ Imported ${imported} transactions from ${bank}.\n\n✓ Auto-categorised: ${matched}\n${uncategorised > 0 ? `⚠ Uncategorised: ${uncategorised} — review these in the Transactions tab (shown in amber)` : ''}${skipped > 0 ? `\n${skipped} rows skipped (no date/amount).` : ''}`);
+  alert(
+    `✓ Imported ${imported} new transactions from ${bank}.` +
+    (duplicates > 0 ? `\n⏭ ${duplicates} duplicate${duplicates!==1?'s':''} skipped (already exist).` : '') +
+    (uncategorised > 0 ? `\n⚠ Uncategorised: ${uncategorised} — review in Transactions tab.` : '') +
+    (skipped > 0 ? `\n${skipped} rows skipped (no date/amount).` : '')
+  );
 }
 
 // ══════════════════════════════════════════════════════
