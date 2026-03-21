@@ -910,19 +910,29 @@ async function createBin() {
 // Load data from bin
 async function loadFromBin() {
   const id = getBinId();
-  if (!id) return false;
+  if (!id) { console.warn('loadFromBin: no bin ID'); return false; }
   setSyncStatus('syncing');
   try {
     const res = await fetch(`${JSONBIN_API}/b/${id}/latest`, {
-      headers: { 'X-Master-Key': MASTER_KEY }
+      method: 'GET',
+      headers: {
+        'X-Master-Key': MASTER_KEY,
+        'Content-Type': 'application/json',
+      }
     });
-    if (!res.ok) throw new Error('Load failed: ' + res.status);
+    console.log('JSONbin fetch status:', res.status);
+    if (!res.ok) {
+      console.error('JSONbin fetch failed:', res.status, res.statusText);
+      setSyncStatus('offline');
+      return false;
+    }
     const json = await res.json();
+    console.log('JSONbin data keys:', Object.keys(json.record || {}));
     applyPayload(json.record);
     setSyncStatus('synced');
     return true;
   } catch(e) {
-    console.error('JSONbin load error:', e);
+    console.error('JSONbin load error:', e.message, e);
     setSyncStatus('offline');
     return false;
   }
@@ -1187,10 +1197,18 @@ async function attemptLogin() {
 
     // Load from cloud first — await it so dashboard renders with real data
     const loaded = await loadFromBin();
-    if (!loaded) setSyncStatus(getBinId() ? 'offline' : 'local');
+    if (!loaded) {
+      setSyncStatus(getBinId() ? 'offline' : 'local');
+    }
 
     // Now render everything with the correct data
     initApp();
+
+    // If load failed but we have local data, push it up to cloud
+    if (!loaded && getBinId() && state.invoices.length > 0) {
+      console.log('Load failed but have local data — pushing to cloud');
+      pushToBin();
+    }
 
   } else {
     document.getElementById('login-err').textContent = 'Incorrect password. Try again.';
