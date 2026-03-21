@@ -805,7 +805,7 @@ const DB = {
 const JSONBIN_API = 'https://api.jsonbin.io/v3';
 const MASTER_KEY  = '$2a$10$wjZldGseV25iurze/grlbOQ1ZxUVCugh.kmmRH3LOo3zEiUF4RKPS';
 // Fallback bin ID — set this once you know your bin ID so any browser can find it
-const HARDCODED_BIN_ID = '';
+const HARDCODED_BIN_ID = '69be97a8c3097a1dd546b70f';
 
 function getBinId()   { return DB.load('jsonbin_id', null) || HARDCODED_BIN_ID || null; }
 function setBinId(id) {
