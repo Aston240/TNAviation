@@ -1118,18 +1118,16 @@ async function attemptLogin() {
     setSyncStatus('syncing');
 
     // Load from cloud first — await it so dashboard renders with real data
-    const loaded = await loadFromBin();
-    if (!loaded) {
-      setSyncStatus(getBinId() ? 'offline' : 'local');
-    }
+    const loaded = await loadFromSheets();
+    if (!loaded) setSyncStatus('local');
 
     // Now render everything with the correct data
     initApp();
 
-    // If load failed but we have local data, push it up to cloud
-    if (!loaded && getBinId() && state.invoices.length > 0) {
-      console.log('Load failed but have local data — pushing to cloud');
-      pushToBin();
+    // If load failed but we have local data, push it up to the sheet
+    if (!loaded && SHEETS_URL && state.invoices.length > 0) {
+      console.log('Load failed — pushing local data to Sheets');
+      pushToSheets(true);
     }
 
   } else {
@@ -1188,11 +1186,8 @@ function initApp() {
     renderMTD();
     renderClientList();
     renderCategoryList();
-    const id = getBinId();
-    const binEl = document.getElementById('settings-bin-id');
-    const binInput = document.getElementById('s-bin-id-input');
-    if (binEl) binEl.textContent = id ? id : 'Not yet created — save anything to initialise';
-    if (binInput) binInput.value = id || '';
+    const sheetsEl = document.getElementById('settings-bin-id');
+    if (sheetsEl) sheetsEl.textContent = SHEETS_URL ? 'Connected via Google Sheets' : 'No Sheets URL set';
   });
 }
 
