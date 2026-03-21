@@ -2176,13 +2176,38 @@ function renderTransactions() {
   }
   tbody.innerHTML = txns.map(t => {
     const uncategorised = !t.categoryId && !t.categoryName;
-    const catDisplay = t.categoryName
-      ? `<div style="font-size:13px;color:var(--text)">${t.categoryName}</div>${t.hmrcCat ? `<div style="font-size:10px;color:var(--text3);margin-top:1px">${t.hmrcCat}</div>` : ''}`
-      : `<span class="pill pill-amber">Uncategorised</span>`;
+    const cats = getCategories();
+
+    // Build options grouped by stream
+    const groups = { 'flying': [], 'property': [], 'personal': [] };
+    cats.forEach(c => groups[c.stream] && groups[c.stream].push(c));
+    const groupLabels = { flying: '✈ Flying', property: '⌂ Property', personal: '· Personal' };
+    let optionsHTML = '<option value="">— Select category —</option>';
+    Object.entries(groups).forEach(([stream, cats]) => {
+      if (!cats.length) return;
+      optionsHTML += `<optgroup label="${groupLabels[stream]}">`;
+      cats.forEach(c => {
+        optionsHTML += `<option value="${c.id}" ${c.id === t.categoryId ? 'selected' : ''}>${c.name}</option>`;
+      });
+      optionsHTML += '</optgroup>';
+    });
+
+    const catDisplay = uncategorised
+      ? `<span class="pill pill-amber" style="cursor:pointer">⊕ Categorise</span>`
+      : `<div style="font-size:13px;color:var(--text);cursor:pointer">${t.categoryName}</div>${t.hmrcCat ? `<div style="font-size:10px;color:var(--text3);margin-top:1px">${t.hmrcCat}</div>` : ''}`;
+
     return `<tr>
       <td class="mono">${fmtDate(t.date)}</td>
       <td class="primary" style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.payee}</td>
-      <td style="min-width:160px">${catDisplay}</td>
+      <td style="min-width:180px;position:relative" id="cat-cell-${t.id}">
+        <div onclick="openInlineCatPicker('${t.id}', this)" style="cursor:pointer;padding:2px 0">${catDisplay}</div>
+        <select class="inline-cat-select" data-txnid="${t.id}"
+          style="display:none;position:absolute;top:0;left:0;width:240px;z-index:50;padding:6px 8px;font-size:12px;background:var(--surface);border:1px solid var(--accent);border-radius:7px;box-shadow:0 4px 16px rgba(0,0,0,0.12);color:var(--text)"
+          onchange="applyInlineCat('${t.id}', this)"
+          onblur="closeInlineCatPicker('${t.id}')">
+          ${optionsHTML}
+        </select>
+      </td>
       <td class="${t.type==='income'?'green':''} mono">${t.type==='income'?fmt(t.amount):''}</td>
       <td class="${t.type==='expense'?'red':''} mono">${t.type==='expense'?fmt(t.amount):''}</td>
       <td><span class="pill pill-grey">${t.quarter||'—'}</span></td>
@@ -2194,6 +2219,46 @@ function renderTransactions() {
       </td>
     </tr>`;
   }).join('');
+}
+
+function openInlineCatPicker(txnId, el) {
+  // Close any other open pickers first
+  document.querySelectorAll('.inline-cat-select').forEach(s => {
+    s.style.display = 'none';
+    s.previousElementSibling && (s.previousElementSibling.style.display = '');
+  });
+  const cell = document.getElementById('cat-cell-' + txnId);
+  if (!cell) return;
+  const clickable = cell.querySelector('div');
+  const select = cell.querySelector('.inline-cat-select');
+  if (clickable) clickable.style.display = 'none';
+  if (select) { select.style.display = 'block'; select.focus(); }
+}
+
+function closeInlineCatPicker(txnId) {
+  // Small delay so onchange fires before blur hides the select
+  setTimeout(() => {
+    const cell = document.getElementById('cat-cell-' + txnId);
+    if (!cell) return;
+    const clickable = cell.querySelector('div');
+    const select = cell.querySelector('.inline-cat-select');
+    if (select) select.style.display = 'none';
+    if (clickable) clickable.style.display = '';
+  }, 150);
+}
+
+function applyInlineCat(txnId, selectEl) {
+  const catId = selectEl.value;
+  const cat = getCategories().find(c => c.id === catId);
+  const t = state.transactions.find(x => x.id === txnId);
+  if (!t) return;
+  t.categoryId   = catId;
+  t.categoryName = cat ? cat.name   : '';
+  t.stream       = cat ? cat.stream : t.stream;
+  t.hmrcCat      = cat ? cat.hmrc   : '';
+  saveState();
+  renderTransactions();
+  renderDashboard();
 }
 
 function editTransaction(id) {
