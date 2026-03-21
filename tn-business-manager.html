@@ -1178,24 +1178,20 @@ async function attemptLogin() {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
 
-    // Always render immediately with whatever is in localStorage (may be empty)
+    // Show a loading state on the dashboard while we fetch cloud data
+    document.getElementById('dash-date-sub').textContent = 'Loading your data…';
+    document.getElementById('dash-stats').innerHTML = '';
+    document.getElementById('dash-quarters').innerHTML = '';
+    document.getElementById('dash-alerts').innerHTML = '';
+    setSyncStatus('syncing');
+
+    // Load from cloud first — await it so dashboard renders with real data
+    const loaded = await loadFromBin();
+    if (!loaded) setSyncStatus(getBinId() ? 'offline' : 'local');
+
+    // Now render everything with the correct data
     initApp();
 
-    // Then load from cloud and re-render if we got data
-    setSyncStatus('syncing');
-    loadFromBin().then(loaded => {
-      if (loaded) {
-        renderDashboard();
-        requestAnimationFrame(() => {
-          renderInvoices();
-          renderTransactions();
-          renderMTD();
-          updateUnpaidBadge();
-        });
-      } else {
-        setSyncStatus(getBinId() ? 'offline' : 'local');
-      }
-    });
   } else {
     document.getElementById('login-err').textContent = 'Incorrect password. Try again.';
     document.getElementById('pin-input').value = '';
