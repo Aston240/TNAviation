@@ -469,6 +469,8 @@ Wallingford, OX10 7JA</textarea></div>
           </div>
           <div id="client-list"></div>
         </div>
+        <div class="settings-section">
+          <h3>Security</h3>
           <div style="display:flex;flex-direction:column;gap:12px">
             <div class="field"><label>New PIN / Password</label><input type="password" id="s-pin-new" placeholder="Enter new password"></div>
             <div class="field"><label>Confirm New PIN</label><input type="password" id="s-pin-confirm" placeholder="Confirm new password"></div>
@@ -477,7 +479,7 @@ Wallingford, OX10 7JA</textarea></div>
           </div>
         </div>
         <div class="settings-section">
-          <h3>Security</h3>
+          <h3>Data</h3>
           <div style="display:flex;flex-direction:column;gap:10px">
             <div style="font-size:12px;color:var(--text2);margin-bottom:4px">
               Cloud sync: <span id="settings-bin-id" style="font-family:var(--mono);font-size:11px;color:var(--accent)">checking...</span>
@@ -486,7 +488,9 @@ Wallingford, OX10 7JA</textarea></div>
             <button class="btn btn-ghost btn-sm" onclick="loadFromBin().then(()=>initApp())">↓ Pull Latest from Cloud</button>
             <button class="btn btn-ghost btn-sm" onclick="exportData()">↓ Export Backup (JSON)</button>
             <button class="btn btn-ghost btn-sm" onclick="importDataFile()">↑ Import Backup (JSON)</button>
+            <button class="btn btn-ghost btn-sm" onclick="importCategoriesFile()">↑ Import Categories (JSON)</button>
             <input type="file" id="import-file" accept=".json" style="display:none" onchange="loadImportFile(event)">
+            <input type="file" id="import-categories-file" accept=".json" style="display:none" onchange="loadCategoriesFile(event)">
             <div style="font-size:11px;color:var(--text3);margin-top:4px">Data auto-syncs to JSONbin cloud on every save. localStorage is kept as offline backup.</div>
           </div>
         </div>
@@ -2713,6 +2717,7 @@ function exportData() {
 }
 
 function importDataFile() { document.getElementById('import-file').click(); }
+function importCategoriesFile() { document.getElementById('import-categories-file').click(); }
 
 function loadImportFile(e) {
   const file = e.target.files[0];
@@ -2722,15 +2727,46 @@ function loadImportFile(e) {
     try {
       const data = JSON.parse(ev.target.result);
       if (!confirm(`Import data from ${data.exportDate || 'backup'}? This will replace all current data.`)) return;
-      if (data.invoices) state.invoices = data.invoices;
-      if (data.transactions) state.transactions = data.transactions;
-      if (data.clients) state.clients = data.clients;
-      if (data.settings) state.settings = data.settings;
+      if (data.invoices)       state.invoices       = data.invoices;
+      if (data.transactions)   state.transactions   = data.transactions;
+      if (data.clients)        state.clients        = data.clients;
+      if (data.settings)       state.settings       = data.settings;
+      if (data.categories)     state.categories     = data.categories;
       if (data.nextInvoiceNum) state.nextInvoiceNum = data.nextInvoiceNum;
       saveState();
       initApp();
       alert('Data imported successfully ✓');
     } catch(err) { alert('Error reading file. Make sure it\'s a valid TN Business Manager backup.'); }
+  };
+  reader.readAsText(file);
+}
+
+function loadCategoriesFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      // Accept either an array directly, or { categories: [...] }
+      const cats = Array.isArray(data) ? data : data.categories;
+      if (!cats || !Array.isArray(cats)) {
+        alert('Invalid categories file. Expected a JSON array of categories.');
+        return;
+      }
+      // Validate each has at minimum a name
+      const valid = cats.filter(c => c.name);
+      if (!valid.length) { alert('No valid categories found in file.'); return; }
+      // Ensure each has an id
+      valid.forEach(c => { if (!c.id) c.id = 'cat_' + Date.now() + Math.random(); });
+      if (!confirm(`Import ${valid.length} categories? This will replace your current category list.`)) return;
+      state.categories = valid;
+      saveState();
+      renderCategoryList();
+      alert(`✓ Imported ${valid.length} categories successfully.`);
+    } catch(err) {
+      alert('Error reading file. Make sure it\'s a valid JSON file.');
+    }
   };
   reader.readAsText(file);
 }
