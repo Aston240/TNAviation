@@ -268,15 +268,18 @@ textarea { resize: vertical; min-height: 80px; }
 }
 .cal-inv-cell:hover { border-color: var(--accent); background: #eff6ff; }
 .cal-inv-cell.empty-cal { background: transparent !important; border-color: transparent !important; cursor: default; pointer-events: none; }
-.cal-inv-cell.weekend-cal { background: var(--surface2); opacity: 0.45; cursor: default; }
-.cal-inv-cell.weekend-cal.has-rate { opacity: 1; background: #fffbef; border-color: var(--amber); cursor: pointer; }
+.cal-inv-cell.weekend-cal { background: var(--surface2); opacity: 0.4; cursor: default; pointer-events: none; }
 .cal-inv-cell.has-rate { background: #ecfdf5; border-color: var(--green); }
+.cal-inv-cell.has-rate:hover { background: #d1fae5; }
+.cal-inv-cell.custom-rate { background: #fffbeb; border-color: var(--amber); }
+.cal-inv-cell.custom-rate:hover { background: #fef3c7; }
 .cal-inv-cell.excluded-cal { background: var(--surface2) !important; border-color: var(--border) !important; }
 .cal-inv-num { font-size: 13px; font-weight: 600; color: var(--text2); line-height: 1; }
 .cal-inv-cell.has-rate .cal-inv-num { color: var(--green2); }
+.cal-inv-cell.custom-rate .cal-inv-num { color: var(--amber2); }
 .cal-inv-cell.excluded-cal .cal-inv-num { color: var(--text3); text-decoration: line-through; }
 .cal-inv-rate { font-size: 9px; font-family: var(--mono); font-weight: 700; color: var(--green2); margin-top: 2px; }
-.cal-inv-cell.weekend-cal.has-rate .cal-inv-rate { color: var(--amber2); }
+.cal-inv-cell.custom-rate .cal-inv-rate { color: var(--amber2); }
 .cal-inv-note-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--accent); margin-top: 2px; }
 /* Addon pills desktop */
 .addon-pill-d {
@@ -586,68 +589,80 @@ Wallingford, OX10 7JA</textarea></div>
         <button class="btn btn-sm btn-ghost" id="type-btn-adhoc" onclick="setInvType('adhoc')">✏ Ad-hoc Lines</button>
       </div>
 
-      <!-- MONTHLY MODE — calendar grid -->
+      <!-- MONTHLY MODE — simplified calendar -->
       <div id="inv-monthly-section">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
-          <div class="field" style="flex:0 0 auto">
-            <label>Month</label>
-            <input type="month" id="inv-month" onchange="generateMonthlyLines()" style="width:160px">
+
+        <!-- Top bar: month + rate + bulk actions -->
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+          <input type="month" id="inv-month" onchange="generateMonthlyLines()" style="width:152px;padding:7px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:var(--sans);font-size:13px;outline:none">
+          <div style="display:flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:4px 10px">
+            <span style="font-size:12px;color:var(--text3);font-family:var(--mono)">£</span>
+            <input type="number" id="inv-default-rate" value="200" style="width:60px;background:none;border:none;outline:none;font-family:var(--mono);font-size:14px;font-weight:700;color:var(--accent)" oninput="onDefaultRateChange()">
+            <span style="font-size:11px;color:var(--text3)">/day</span>
           </div>
-          <div class="field" style="flex:0 0 auto">
-            <label>Day Rate (£)</label>
-            <input type="number" id="inv-default-rate" value="200" style="width:90px" oninput="onDefaultRateChange()">
-          </div>
-          <div style="margin-top:18px;display:flex;gap:6px;flex-wrap:wrap">
-            <button class="btn btn-xs btn-ghost" onclick="calBulkSet(parseFloat(document.getElementById('inv-default-rate').value)||200)">All £<span id="inv-rate-quick-label">200</span></button>
-            <button class="btn btn-xs btn-ghost" onclick="calBulkSet(0)">Clear All</button>
-            <button class="btn btn-xs btn-ghost" id="weekend-btn" onclick="includeWeekends()">+ Weekends</button>
-          </div>
+          <button class="btn btn-xs btn-ghost" onclick="calBulkSet(parseFloat(document.getElementById('inv-default-rate').value)||200)">All on</button>
+          <button class="btn btn-xs btn-ghost" onclick="calBulkSet(0)" style="color:var(--red)">All off</button>
+          <button class="btn btn-xs btn-ghost" id="weekend-btn" onclick="includeWeekends()">+ Weekends</button>
         </div>
 
-        <!-- Calendar grid -->
+        <!-- Calendar -->
         <div style="border:1px solid var(--border);border-radius:10px;padding:14px;background:var(--surface)">
           <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:8px">
-            <div style="text-align:center;font-size:10px;color:var(--text3);font-family:var(--mono);font-weight:700;padding-bottom:2px">Mo</div>
-            <div style="text-align:center;font-size:10px;color:var(--text3);font-family:var(--mono);font-weight:700;padding-bottom:2px">Tu</div>
-            <div style="text-align:center;font-size:10px;color:var(--text3);font-family:var(--mono);font-weight:700;padding-bottom:2px">We</div>
-            <div style="text-align:center;font-size:10px;color:var(--text3);font-family:var(--mono);font-weight:700;padding-bottom:2px">Th</div>
-            <div style="text-align:center;font-size:10px;color:var(--text3);font-family:var(--mono);font-weight:700;padding-bottom:2px">Fr</div>
-            <div style="text-align:center;font-size:10px;color:var(--accent);font-family:var(--mono);font-weight:700;padding-bottom:2px">Sa</div>
-            <div style="text-align:center;font-size:10px;color:var(--accent);font-family:var(--mono);font-weight:700;padding-bottom:2px">Su</div>
+            <div style="text-align:center;font-size:10px;color:var(--text3);font-family:var(--mono);font-weight:700">Mo</div>
+            <div style="text-align:center;font-size:10px;color:var(--text3);font-family:var(--mono);font-weight:700">Tu</div>
+            <div style="text-align:center;font-size:10px;color:var(--text3);font-family:var(--mono);font-weight:700">We</div>
+            <div style="text-align:center;font-size:10px;color:var(--text3);font-family:var(--mono);font-weight:700">Th</div>
+            <div style="text-align:center;font-size:10px;color:var(--text3);font-family:var(--mono);font-weight:700">Fr</div>
+            <div style="text-align:center;font-size:10px;color:var(--accent);font-family:var(--mono);font-weight:700">Sa</div>
+            <div style="text-align:center;font-size:10px;color:var(--accent);font-family:var(--mono);font-weight:700">Su</div>
           </div>
           <div id="cal-cells" style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px"></div>
-          <div style="display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-            <span style="font-family:var(--mono);font-size:11px;color:var(--text3)">DAYS TOTAL</span>
-            <span style="font-family:var(--mono);font-size:18px;font-weight:700;color:var(--green)" id="cal-days-subtotal">£0.00</span>
-          </div>
         </div>
 
-        <!-- Add-ons pills -->
-        <div style="margin-top:12px">
-          <div style="font-size:11px;color:var(--text3);font-family:var(--mono);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Add-ons — click to toggle</div>
-          <div id="addon-pills" style="display:flex;flex-wrap:wrap;gap:8px"></div>
-        </div>
-
-        <!-- Day detail popover -->
+        <!-- Day popover -->
         <div id="cal-day-popover" style="display:none;position:fixed;inset:0;z-index:150;background:rgba(0,0,0,0.55);align-items:center;justify-content:center" onclick="closeDayPopover(event)">
-          <div style="background:var(--surface);border-radius:14px;padding:24px;width:320px;box-shadow:0 20px 60px rgba(0,0,0,0.3)" onclick="event.stopPropagation()">
-            <div id="popover-day-title" style="font-size:14px;font-weight:600;margin-bottom:16px;color:var(--text);font-family:var(--mono)">Mon 3 Mar</div>
-            <div class="field" style="margin-bottom:10px">
-              <label>Amount (£)</label>
-              <input type="number" id="popover-amount" min="0" step="0.01" style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--green)" oninput="updateInvTotal()">
+          <div style="background:var(--surface);border-radius:14px;padding:22px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,0.3)" onclick="event.stopPropagation()">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+              <div id="popover-day-title" style="font-size:15px;font-weight:700;color:var(--text);font-family:var(--mono)">Mon 3 Mar</div>
+              <button onclick="closeDayPopover(null)" style="background:none;border:none;font-size:20px;color:var(--text3);cursor:pointer;line-height:1">×</button>
             </div>
-            <div style="display:flex;gap:6px;margin-bottom:14px">
-              <button class="btn btn-xs btn-ghost" id="pop-full-btn" onclick="popoverQuick('full')" style="flex:1;font-family:var(--mono)">£200</button>
-              <button class="btn btn-xs btn-ghost" id="pop-half-btn" onclick="popoverQuick('half')" style="flex:1;font-family:var(--mono)">£100</button>
-              <button class="btn btn-xs btn-ghost" onclick="popoverQuick('zero')" style="flex:1;font-family:var(--mono);color:var(--red)">£0 off</button>
+
+            <!-- Amount — always editable -->
+            <div style="margin-bottom:12px">
+              <div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 12px;margin-bottom:8px">
+                <span style="font-size:18px;color:var(--text3);font-family:var(--mono);font-weight:700">£</span>
+                <input type="number" id="popover-amount" min="0" step="0.01"
+                  style="flex:1;background:none;border:none;outline:none;font-family:var(--mono);font-size:22px;font-weight:700;color:var(--green);width:100%"
+                  oninput="updateInvTotal()">
+              </div>
+              <!-- Quick set -->
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-xs btn-ghost" id="pop-full-btn" onclick="popoverSetAmount(parseFloat(document.getElementById('inv-default-rate').value)||200)" style="flex:1;font-family:var(--mono)">£<span id="pop-rate-lbl">200</span></button>
+                <button class="btn btn-xs btn-ghost" id="pop-half-btn" onclick="popoverSetAmount(Math.round((parseFloat(document.getElementById('inv-default-rate').value)||200)/2))" style="flex:1;font-family:var(--mono)">½ day</button>
+                <button class="btn btn-xs btn-ghost" onclick="popoverSetAmount(0)" style="flex:1;font-family:var(--mono);color:var(--red)">£0 off</button>
+              </div>
             </div>
+
+            <!-- Add-ons — bump the amount -->
+            <div style="margin-bottom:12px">
+              <div style="font-size:11px;color:var(--text3);font-family:var(--mono);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Add-ons (tap to add to total)</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap" id="popover-addons">
+                <button class="btn btn-xs btn-ghost" onclick="popoverAddAddon('Night flying', 100)" style="font-size:12px">🌙 Night +£100</button>
+                <button class="btn btn-xs btn-ghost" onclick="popoverAddAddon('Reval/Renewal', 175)" style="font-size:12px">✈ Reval +£175</button>
+                <button class="btn btn-xs btn-ghost" onclick="popoverAddAddon('Skills Test', 200)" style="font-size:12px">📋 Test +£200</button>
+              </div>
+            </div>
+
+            <!-- Note -->
             <div class="field" style="margin-bottom:16px">
               <label>Note (optional)</label>
-              <input type="text" id="popover-note" placeholder="e.g. Ground school session">
+              <input type="text" id="popover-note" placeholder="e.g. Taha Test, Childcare, Holiday">
             </div>
+
             <button class="btn btn-primary" onclick="closeDayPopover(null)" style="width:100%">Done</button>
           </div>
         </div>
+
       </div>
 
       <!-- AD-HOC MODE -->
@@ -1456,7 +1471,6 @@ function openNewInvoice() {
   state.editingInvoiceId = null;
   calInvData = {};
   calInvWeekends = false;
-  desktopAddonState = {};
   document.getElementById('modal-inv-title').textContent = 'New Invoice';
   document.getElementById('inv-number').value = state.nextInvoiceNum;
   document.getElementById('inv-date').value = today();
@@ -1481,15 +1495,6 @@ function openNewInvoice() {
 let calInvData = {};      // dateStr → { amount, note, excluded }
 let calInvWeekends = false;
 let calInvPopoverDate = null;
-
-const DESKTOP_ADDONS = [
-  { id: 'night',  label: 'Night Flying',    default: 100 },
-  { id: 'exam',   label: 'Exam / Test Fee', default: 175 },
-  { id: 'imc',    label: 'IMC / Renewal',   default: 150 },
-  { id: 'ground', label: 'Ground School',   default: 200 },
-  { id: 'custom', label: 'Custom Extra',    default: 0   },
-];
-let desktopAddonState = {}; // id → { active, amount }
 
 function onDefaultRateChange() {
   const v = parseFloat(document.getElementById('inv-default-rate').value) || 200;
@@ -1526,7 +1531,6 @@ function generateMonthlyLines() {
 
   calInvData = {};
   calInvWeekends = false;
-  desktopAddonState = {};
   document.getElementById('weekend-btn').textContent = '+ Weekends';
 
   for (let d = 1; d <= daysInMonth; d++) {
@@ -1555,13 +1559,13 @@ function renderCalInv() {
   const [year, month] = monthVal.split('-').map(Number);
   const daysInMonth = new Date(year, month, 0).getDate();
   const firstDow = new Date(year, month - 1, 1).getDay();
-  const offset = firstDow === 0 ? 6 : firstDow - 1; // Mon=0 offset
+  const offset = firstDow === 0 ? 6 : firstDow - 1;
+  const defaultRate = parseFloat(document.getElementById('inv-default-rate').value) || 200;
 
   const grid = document.getElementById('cal-cells');
   if (!grid) return;
   grid.innerHTML = '';
 
-  // Empty offset cells
   for (let i = 0; i < offset; i++) {
     const el = document.createElement('div');
     el.className = 'cal-inv-cell empty-cal';
@@ -1576,7 +1580,6 @@ function renderCalInv() {
     const data = calInvData[ds];
 
     if (isWeekend && !calInvWeekends) {
-      // Show dimmed weekend cell
       const el = document.createElement('div');
       el.className = 'cal-inv-cell weekend-cal';
       const num = document.createElement('div');
@@ -1586,13 +1589,17 @@ function renderCalInv() {
       continue;
     }
 
-    const el = document.createElement('div');
     const amt = data ? (data.excluded ? 0 : (data.amount || 0)) : 0;
     const excluded = data ? !!data.excluded : false;
+    // Colour logic: amber = custom (differs from default rate and not 0), green = default rate, grey = off
+    const isCustom = amt > 0 && amt !== defaultRate;
     let cls = 'cal-inv-cell';
     if (isWeekend) cls += ' weekend-cal';
-    if (amt > 0 && !excluded) cls += ' has-rate';
-    if (excluded) cls += ' excluded-cal';
+    if (excluded || amt === 0) cls += ' excluded-cal';
+    else if (isCustom) cls += ' custom-rate';
+    else cls += ' has-rate';
+
+    const el = document.createElement('div');
     el.className = cls;
 
     const num = document.createElement('div');
@@ -1600,53 +1607,60 @@ function renderCalInv() {
     el.appendChild(num);
 
     if (amt > 0 && !excluded) {
-      const rate = document.createElement('div');
-      rate.className = 'cal-inv-rate';
-      rate.textContent = `£${amt}`;
-      el.appendChild(rate);
+      const rateEl = document.createElement('div');
+      rateEl.className = 'cal-inv-rate';
+      rateEl.textContent = `£${amt}`;
+      el.appendChild(rateEl);
     }
 
+    // Note dot — blue if has note
     if (data && data.note) {
       const dot = document.createElement('div');
       dot.className = 'cal-inv-note-dot';
       el.appendChild(dot);
     }
 
-    const defaultRate = parseFloat(document.getElementById('inv-default-rate').value) || 200;
-    el.onclick = () => openDayPopover(ds, d, dow, defaultRate);
+    el.onclick = () => openDayPopover(ds, d);
     grid.appendChild(el);
   }
-
-  // Update days subtotal
-  let daysTotal = 0;
-  Object.values(calInvData).forEach(d => { if (!d.excluded) daysTotal += (d.amount || 0); });
-  const sub = document.getElementById('cal-days-subtotal');
-  if (sub) sub.textContent = fmt(daysTotal);
 }
 
-function openDayPopover(ds, day, dow, defaultRate) {
+function openDayPopover(ds, day) {
   calInvPopoverDate = ds;
   const [year, month] = ds.split('-').map(Number);
   const date = new Date(year, month - 1, day);
-  const dayName = date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  const dayName = date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
   document.getElementById('popover-day-title').textContent = dayName;
 
+  const defaultRate = parseFloat(document.getElementById('inv-default-rate').value) || 200;
   const data = calInvData[ds] || { amount: defaultRate, note: '' };
   document.getElementById('popover-amount').value = data.excluded ? '' : (data.amount || '');
   document.getElementById('popover-note').value = data.note || '';
 
-  const rate = parseFloat(document.getElementById('inv-default-rate').value) || 200;
-  document.getElementById('pop-full-btn').textContent = `£${rate}`;
-  document.getElementById('pop-half-btn').textContent = `£${Math.round(rate / 2)}`;
+  // Update rate label on quick buttons
+  const rl = document.getElementById('pop-rate-lbl');
+  if (rl) rl.textContent = defaultRate;
 
   document.getElementById('cal-day-popover').style.display = 'flex';
   setTimeout(() => document.getElementById('popover-amount').select(), 50);
 }
 
-function closeDayPopover(event) {
-  // event===null means "Done" button. event is the overlay means user clicked outside.
-  if (event && event.target !== document.getElementById('cal-day-popover')) return;
+function popoverSetAmount(val) {
+  document.getElementById('popover-amount').value = val || '';
+  updateInvTotal();
+}
 
+function popoverAddAddon(label, addAmt) {
+  const current = parseFloat(document.getElementById('popover-amount').value) || 0;
+  document.getElementById('popover-amount').value = current + addAmt;
+  // Append to note
+  const noteEl = document.getElementById('popover-note');
+  noteEl.value = noteEl.value ? `${noteEl.value} + ${label} (£${addAmt})` : `${label} (£${addAmt})`;
+  updateInvTotal();
+}
+
+function closeDayPopover(event) {
+  if (event && event.target !== document.getElementById('cal-day-popover')) return;
   if (calInvPopoverDate) {
     const amount = parseFloat(document.getElementById('popover-amount').value) || 0;
     const note = document.getElementById('popover-note').value;
@@ -1656,12 +1670,6 @@ function closeDayPopover(event) {
   document.getElementById('cal-day-popover').style.display = 'none';
   renderCalInv();
   updateInvTotal();
-}
-
-function popoverQuick(type) {
-  const rate = parseFloat(document.getElementById('inv-default-rate').value) || 200;
-  const val = type === 'full' ? rate : type === 'half' ? Math.round(rate / 2) : 0;
-  document.getElementById('popover-amount').value = val || '';
 }
 
 function calBulkSet(val) {
@@ -1700,39 +1708,13 @@ function includeWeekends() {
   updateInvTotal();
 }
 
-function renderDesktopAddons() {
-  const grid = document.getElementById('addon-pills');
-  if (!grid) return;
-  grid.innerHTML = '';
-  DESKTOP_ADDONS.forEach(a => {
-    const s = desktopAddonState[a.id] || { active: false, amount: a.default };
-    const pill = document.createElement('div');
-    pill.className = 'addon-pill-d' + (s.active ? ' addon-on' : '');
-    pill.innerHTML = `<span class="ap-lbl">${a.label}</span><span class="ap-amt">£${s.amount}</span>`;
-    pill.onclick = () => toggleDesktopAddon(a.id, a.default, a.label);
-    grid.appendChild(pill);
-  });
-}
-
-function toggleDesktopAddon(id, defaultAmt, label) {
-  const current = desktopAddonState[id] || { active: false, amount: defaultAmt };
-  if (!current.active) {
-    const raw = prompt(`${label} — enter amount:`, defaultAmt);
-    if (raw === null) return;
-    const amt = parseFloat(raw) || defaultAmt;
-    desktopAddonState[id] = { active: true, amount: amt };
-  } else {
-    desktopAddonState[id] = { ...current, active: false };
-  }
-  renderDesktopAddons();
-  updateInvTotal();
-}
-
-// Compatibility stubs (no longer used but kept for safety)
+// Compatibility stubs
 function setAllDays(val) { calBulkSet(val); }
 function updateAllDefaultRates() { onDefaultRateChange(); }
 function setDayAmount() {}
 function showAddonMenu() {}
+function renderDesktopAddons() {}
+function toggleDesktopAddon() {}
 
 // ── AD-HOC LINES ────────────────────────────────────
 function getClientRates() {
@@ -1847,10 +1829,7 @@ function addAdhocLine(date = '', type = 'day', desc = '', amount = '') {
 function updateInvTotal() {
   let total = 0;
   if (invType === 'monthly') {
-    // Sum from calInvData
     Object.values(calInvData).forEach(d => { if (!d.excluded) total += (d.amount || 0); });
-    // Add active add-ons
-    Object.values(desktopAddonState).forEach(a => { if (a.active) total += (a.amount || 0); });
   } else {
     document.querySelectorAll('#adhoc-lines .line-amount').forEach(i => total += parseFloat(i.value) || 0);
   }
@@ -1864,7 +1843,6 @@ function collectInvoiceLines() {
     if (!monthVal) return lines;
     const [year, month] = monthVal.split('-').map(Number);
     const days = new Date(year, month, 0).getDate();
-    // Emit all days in date order
     for (let d = 1; d <= days; d++) {
       const date = new Date(year, month - 1, d);
       const dow = date.getDay();
@@ -1876,14 +1854,6 @@ function collectInvoiceLines() {
       const amount = data ? (data.excluded ? 0 : (data.amount || 0)) : 0;
       lines.push({ date: ds, desc: data?.note || '', notes: '', amount });
     }
-    // Add-on lines at end
-    DESKTOP_ADDONS.forEach(a => {
-      const s = desktopAddonState[a.id];
-      if (s && s.active) {
-        const lastDs = new Date(year, month, 0).toISOString().split('T')[0];
-        lines.push({ date: lastDs, desc: a.label, notes: '', amount: s.amount });
-      }
-    });
   } else {
     document.querySelectorAll('#adhoc-lines > div').forEach(row => {
       const typeEl = row.querySelector('select');
@@ -2031,24 +2001,16 @@ function editInvoice(id) {
     // Reset cal state then load saved lines
     calInvData = {};
     calInvWeekends = false;
-    desktopAddonState = {};
     document.getElementById('weekend-btn').textContent = '+ Weekends';
     inv.lines.forEach(l => {
       if (!l.date) return;
-      // Check if it's a named add-on line
-      const addon = DESKTOP_ADDONS.find(a => a.label === l.desc);
-      if (addon && l.amount > 0) {
-        desktopAddonState[addon.id] = { active: true, amount: l.amount };
-      } else {
-        calInvData[l.date] = { amount: l.amount, note: l.desc || '', excluded: l.amount === 0 };
-        // Detect if any weekend dates present
-        const dow = new Date(l.date + 'T12:00:00').getDay();
-        if (dow === 0 || dow === 6) calInvWeekends = true;
-      }
+      // All lines go straight into calInvData — add-ons are baked into the day amount/note
+      calInvData[l.date] = { amount: l.amount, note: l.desc || '', excluded: l.amount === 0 };
+      const dow = new Date(l.date + 'T12:00:00').getDay();
+      if (dow === 0 || dow === 6) calInvWeekends = true;
     });
     if (calInvWeekends) document.getElementById('weekend-btn').textContent = '− Weekends';
     renderCalInv();
-    renderDesktopAddons();
   } else {
     document.getElementById('adhoc-lines').innerHTML = '';
     (inv.lines || []).forEach(l => addAdhocLine(l.date, l.lineType || 'fixed', l.desc, l.amount));
