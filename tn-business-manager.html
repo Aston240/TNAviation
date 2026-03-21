@@ -1297,7 +1297,7 @@ function renderDashboard() {
   document.getElementById('dash-stats').innerHTML = `
     <div class="stat-card green"><div class="label">Total Income</div><div class="value">${fmt(totalIncome)}</div><div class="sub">Tax year ${ty}/${ty+1}</div></div>
     <div class="stat-card red"><div class="label">Total Expenses</div><div class="value">${fmt(totalExp)}</div><div class="sub">Allowable deductions</div></div>
-    <div class="stat-card ${profit >= 0 ? 'blue' : 'red'}"><div class="label">Net Profit</div><div class="value">${fmt(profit)}</div><div class="sub">${profit >= 0 ? 'Before tax' : 'Loss year-to-date'}</div></div>
+    <div class="stat-card ${profit >= 0 ? 'blue' : 'red'}"><div class="label">Net Profit</div><div class="value">${profit < 0 ? '-' : ''}${fmt(profit)}</div><div class="sub">${profit >= 0 ? 'Before tax' : 'Loss year-to-date'}</div></div>
     <div class="stat-card amber"><div class="label">Unpaid Invoices</div><div class="value">${fmt(unpaidTotal)}</div><div class="sub">${unpaidCount} invoice${unpaidCount !== 1 ? 's' : ''} outstanding${badDebtTotal > 0 ? ` · ${fmt(badDebtTotal)} bad debt` : ''}</div></div>
     <div class="stat-card"><div class="label">Flying Income</div><div class="value" style="color:var(--purple)">${fmt(flyingIncome)}</div><div class="sub">Self-employment stream</div></div>
     <div class="stat-card"><div class="label">Property Income</div><div class="value" style="color:var(--accent)">${fmt(propertyIncome)}</div><div class="sub">Rental stream</div></div>
@@ -2531,7 +2531,7 @@ function renderMTD() {
           <div class="mtd-summary-row">
             <div class="mtd-item"><div class="cat">Turnover</div><div class="amt income">${fmt(flyIncome)}</div></div>
             <div class="mtd-item"><div class="cat">Expenses</div><div class="amt expense">${fmt(flyExp)}</div></div>
-            <div class="mtd-item"><div class="cat">Net Profit</div><div class="amt profit">${fmt(flyProfit)}</div></div>
+            <div class="mtd-item"><div class="cat">Net Profit</div><div class="amt profit" style="color:${flyProfit >= 0 ? 'var(--accent)' : 'var(--red)'}">${flyProfit < 0 ? '-' : ''}${fmt(flyProfit)}</div></div>
           </div>
           ${Object.entries(flyExpBreakdown).length > 0 ? `
           <div style="margin-top:10px">
@@ -2549,7 +2549,7 @@ function renderMTD() {
           <div class="mtd-summary-row">
             <div class="mtd-item"><div class="cat">Rental Income</div><div class="amt income">${fmt(propIncome)}</div></div>
             <div class="mtd-item"><div class="cat">Expenses</div><div class="amt expense">${fmt(propExp)}</div></div>
-            <div class="mtd-item"><div class="cat">Net Profit</div><div class="amt profit">${fmt(propProfit)}</div></div>
+            <div class="mtd-item"><div class="cat">Net Profit</div><div class="amt profit" style="color:${propProfit >= 0 ? 'var(--accent)' : 'var(--red)'}">${propProfit < 0 ? '-' : ''}${fmt(propProfit)}</div></div>
           </div>
           ${Object.entries(propExpBreakdown).length > 0 ? `
           <div style="margin-top:10px">
