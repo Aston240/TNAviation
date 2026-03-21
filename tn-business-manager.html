@@ -2516,40 +2516,36 @@ function unmarkQuarterSubmitted(ty, q) {
 // ══════════════════════════════════════════════════════
 function loadSettings() {
   const s = state.settings;
-  if (s.name) document.getElementById('s-name').value = s.name;
-  if (s.trading) document.getElementById('s-trading').value = s.trading;
-  if (s.address) document.getElementById('s-address').value = s.address;
-  if (s.phone) document.getElementById('s-phone').value = s.phone;
-  if (s.email) document.getElementById('s-email').value = s.email;
-  if (s.utr) document.getElementById('s-utr').value = s.utr;
-  if (s.ni) document.getElementById('s-ni').value = s.ni;
-  if (s.bank) document.getElementById('s-bank').value = s.bank;
-  if (s.accname) document.getElementById('s-accname').value = s.accname;
-  if (s.accno) document.getElementById('s-accno').value = s.accno;
-  if (s.sort) document.getElementById('s-sort').value = s.sort;
-  if (s.rateFull) document.getElementById('s-rate-full').value = s.rateFull;
-  if (s.rateHalf) document.getElementById('s-rate-half').value = s.rateHalf;
-  if (s.rateNight) document.getElementById('s-rate-night').value = s.rateNight;
-  if (s.rateTest) document.getElementById('s-rate-test').value = s.rateTest;
+  const set = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+  set('s-name',      s.name);
+  set('s-trading',   s.trading);
+  set('s-address',   s.address);
+  set('s-phone',     s.phone);
+  set('s-email',     s.email);
+  set('s-utr',       s.utr);
+  set('s-ni',        s.ni);
+  set('s-bank',      s.bank);
+  set('s-accname',   s.accname);
+  set('s-accno',     s.accno);
+  set('s-sort',      s.sort);
+  set('s-rate-full', s.rateFull);
 }
 
 function saveSettings() {
+  const get = id => { const el = document.getElementById(id); return el ? el.value : ''; };
   state.settings = {
-    name: document.getElementById('s-name').value,
-    trading: document.getElementById('s-trading').value,
-    address: document.getElementById('s-address').value,
-    phone: document.getElementById('s-phone').value,
-    email: document.getElementById('s-email').value,
-    utr: document.getElementById('s-utr').value,
-    ni: document.getElementById('s-ni').value,
-    bank: document.getElementById('s-bank').value,
-    accname: document.getElementById('s-accname').value,
-    accno: document.getElementById('s-accno').value,
-    sort: document.getElementById('s-sort').value,
-    rateFull: document.getElementById('s-rate-full').value,
-    rateHalf: document.getElementById('s-rate-half').value,
-    rateNight: document.getElementById('s-rate-night').value,
-    rateTest: document.getElementById('s-rate-test').value,
+    name:     get('s-name'),
+    trading:  get('s-trading'),
+    address:  get('s-address'),
+    phone:    get('s-phone'),
+    email:    get('s-email'),
+    utr:      get('s-utr'),
+    ni:       get('s-ni'),
+    bank:     get('s-bank'),
+    accname:  get('s-accname'),
+    accno:    get('s-accno'),
+    sort:     get('s-sort'),
+    rateFull: get('s-rate-full'),
   };
   saveState();
   alert('Settings saved ✓');
