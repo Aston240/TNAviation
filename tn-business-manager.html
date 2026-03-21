@@ -489,6 +489,8 @@ Wallingford, OX10 7JA</textarea></div>
               <input type="text" id="s-bin-id-input" placeholder="Will appear after first save" readonly style="font-family:var(--mono);font-size:12px;cursor:pointer" onclick="this.select()" title="Click to select all">
             </div>
             <button class="btn btn-ghost btn-sm" onclick="pushToBin()">⟳ Sync to Cloud Now</button>
+            <button class="btn btn-ghost btn-sm" onclick="findExistingBin()">🔍 Find My Existing Bin</button>
+            <button class="btn btn-ghost btn-sm" onclick="forceCreateBin()">☁ Create New Cloud Storage</button>
             <button class="btn btn-ghost btn-sm" onclick="loadFromBin().then(()=>initApp())">↓ Pull Latest from Cloud</button>
             <button class="btn btn-ghost btn-sm" onclick="exportData()">↓ Export Backup (JSON)</button>
             <button class="btn btn-ghost btn-sm" onclick="importDataFile()">↑ Import Backup (JSON)</button>
@@ -927,6 +929,59 @@ async function loadFromBin() {
 }
 
 // Push data to bin (debounced — waits 1.5s after last save)
+async function forceCreateBin() {
+  if (!confirm('Create a new cloud storage bin and save all current data to it?')) return;
+  const id = await createBin();
+  if (id) {
+    alert(`✓ Cloud storage created!\n\nBin ID: ${id}\n\nSend this ID to Claude to hardcode it into the app so it works on every browser.`);
+  } else {
+    alert('Failed to create bin. Check your internet connection and try again.');
+  }
+}
+
+async function findExistingBin() {
+  setSyncStatus('syncing');
+  try {
+    const res = await fetch(`${JSONBIN_API}/b`, {
+      headers: { 'X-Master-Key': MASTER_KEY }
+    });
+    if (!res.ok) throw new Error(`List failed: ${res.status}`);
+    const json = await res.json();
+    const bins = json.result || [];
+    if (!bins.length) {
+      setSyncStatus('local');
+      alert('No bins found on this JSONbin account. Click "Create New Cloud Storage" to set one up.');
+      return;
+    }
+    // Prefer a bin named TN-Business-Manager, otherwise use most recent
+    const tnBin = bins.find(b => (b.name || '').includes('TN-Business-Manager')) || bins[0];
+    const id = tnBin.id || tnBin._id;
+    if (!id) {
+      setSyncStatus('error');
+      alert('Could not read bin ID from account. Try "Create New Cloud Storage" instead.');
+      return;
+    }
+    setBinId(id);
+    const loaded = await loadFromBin();
+    if (loaded) {
+      renderDashboard();
+      requestAnimationFrame(() => {
+        renderInvoices();
+        renderTransactions();
+        renderMTD();
+        updateUnpaidBadge();
+      });
+      alert(`✓ Connected!\n\nBin ID: ${id}\n\nSend this ID to Claude to hardcode it so every browser finds your data automatically.`);
+    } else {
+      alert(`Found bin ID: ${id} but couldn't load data. Try ⟳ Sync to Cloud Now.`);
+    }
+  } catch(e) {
+    console.error('Find bin error:', e);
+    setSyncStatus('error');
+    alert('Error: ' + e.message + '\n\nCheck your internet connection.');
+  }
+}
+
 async function pushToBin() {
   const id = getBinId();
   if (!id) {
