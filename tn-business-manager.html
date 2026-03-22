@@ -536,6 +536,26 @@ Wallingford, OX10 7JA</textarea></div>
             <input type="file" id="import-file" accept=".json" style="display:none" onchange="loadImportFile(event)">
             <input type="file" id="import-categories-file" accept=".json" style="display:none" onchange="loadCategoriesFile(event)">
             <div style="font-size:11px;color:var(--text3);margin-top:4px">Data auto-syncs to Google Sheets on every save. localStorage is kept as offline backup.</div>
+
+            <!-- Year-end -->
+            <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:12px">
+              <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;font-family:var(--mono);letter-spacing:1px;text-transform:uppercase">Year End</div>
+              <div id="year-end-alert" style="display:none;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;margin-bottom:8px;font-size:13px;color:#92400e"></div>
+              <button class="btn btn-ghost btn-sm" onclick="exportYearPDF()" style="border-color:var(--amber);color:var(--amber)">📄 Export Year Summary (PDF)</button>
+              <button class="btn btn-ghost btn-sm" onclick="archiveYearPrompt()" style="border-color:var(--red);color:var(--red)">📦 Archive Year &amp; Start Fresh</button>
+              <div style="font-size:11px;color:var(--text3);margin-top:6px">Archiving saves 2025/26 permanently to a named tab in Google Sheets, clears the live data store, and starts 2026/27 clean.</div>
+              <div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <span style="font-size:12px;color:var(--text3)">View previous year:</span>
+                <select id="prev-year-select" style="padding:5px 8px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+                  <option value="">— select —</option>
+                </select>
+                <button class="btn btn-xs btn-ghost" onclick="loadPrevYear()">Load</button>
+                <button class="btn btn-xs btn-ghost" id="return-live-btn" style="display:none;border-color:var(--green);color:var(--green)" onclick="returnToLive()">↩ Return to Live</button>
+              </div>
+              <div id="prev-year-banner" style="display:none;background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 14px;margin-top:8px;font-size:13px;color:#92400e">
+                📂 Viewing archived year <strong id="prev-year-label"></strong> — read-only. Changes will not be saved.
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -3144,3 +3164,316 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 </script>
 </body>
 </html>
+<!-- YEAR-END JS — injected -->
+<script>
+// ══════════════════════════════════════════════════════
+// YEAR-END — archive, export, previous year view
+// ══════════════════════════════════════════════════════
+
+let viewingArchivedYear = null; // null = live, '2025-26' = archived
+let liveStateSnapshot   = null; // saved live state while browsing archive
+
+// ── On login: check if year has rolled and we haven't archived ──
+async function checkYearRollover() {
+  const ty = currentTaxYear();
+  const lastCheckedYear = DB.load('lastArchivedYear', null);
+  // If currentTaxYear is GREATER than what we last archived, the year has rolled
+  if (lastCheckedYear && ty > parseInt(lastCheckedYear.split('-')[0])) return; // already handled
+  // Check if today is between Apr 6 and Apr 30 (grace period prompt)
+  const now = new Date();
+  const isNewYear = (now.getMonth() === 3 && now.getDate() >= 6); // April
+  if (!isNewYear) return;
+
+  const prevTy = ty - 1;
+  const prevLabel = `${prevTy}-${String(prevTy + 1).slice(2)}`;
+  const alreadyArchived = DB.load(`archived_${prevLabel}`, false);
+  if (alreadyArchived) return;
+
+  // Show the alert in the Data settings section
+  const alert = document.getElementById('year-end-alert');
+  if (alert) {
+    alert.style.display = 'block';
+    alert.innerHTML = `⚠ <strong>New tax year has started.</strong> Your ${prevLabel} data is still live. <a href="#" onclick="showTab('settings');event.preventDefault()" style="color:inherit;font-weight:600;text-decoration:underline">Go to Settings → Data → Year End</a> to archive it safely before adding 2026/27 data.`;
+  }
+
+  // Also show a one-time modal prompt
+  const shown = DB.load('yearRolloverPromptShown_' + prevLabel, false);
+  if (!shown) {
+    DB.save('yearRolloverPromptShown_' + prevLabel, true);
+    setTimeout(() => {
+      if (confirm(`📅 The tax year has rolled over to ${ty}/${ty+1}.\n\nWould you like to archive your ${prevLabel} data now?\n\nThis will:\n• Save ${prevLabel} permanently to Google Sheets\n• Start the live data store fresh for ${ty}/${String(ty+1).slice(2)}\n\nYou can also do this later in Settings → Data → Year End.`)) {
+        showTab('settings');
+        setTimeout(() => archiveYearPrompt(), 300);
+      }
+    }, 1500);
+  }
+}
+
+// ── Populate prev-year dropdown from Sheets ──────────────────
+async function loadArchivedYearsList() {
+  const url = SHEETS_URL || DB.load('sheets_url', '');
+  if (!url) return;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'listYears' }),
+    });
+    const result = await res.json();
+    if (result.status === 'ok' && result.years) {
+      const sel = document.getElementById('prev-year-select');
+      if (!sel) return;
+      sel.innerHTML = '<option value="">— select —</option>';
+      result.years.forEach(y => {
+        const o = document.createElement('option');
+        o.value = y; o.textContent = y;
+        sel.appendChild(o);
+      });
+    }
+  } catch(e) { /* no years or offline */ }
+}
+
+// ── Archive year prompt ───────────────────────────────────────
+async function archiveYearPrompt() {
+  const ty = currentTaxYear();
+  // We want to archive the PREVIOUS year if the year has just rolled,
+  // or the CURRENT year if user wants to manually archive before Apr 6.
+  const now = new Date();
+  const yearRolled = (now.getMonth() >= 3 && !(now.getMonth() === 3 && now.getDate() < 6));
+  const archiveTy = yearRolled ? ty - 1 : ty;
+  const label = `${archiveTy}-${String(archiveTy + 1).slice(2)}`;
+
+  if (!confirm(`Archive tax year ${label}?\n\nThis will:\n✓ Save all ${label} invoices, transactions and MTD data permanently to Google Sheets (tab: "💾 Archive ${label}")\n✓ Clear the live Data Store ready for ${ty}/${String(ty+1).slice(2)}\n✓ Keep your clients, settings and categories\n\n⚠ Make sure you have synced to Sheets before doing this.\n\nContinue?`)) return;
+
+  const url = SHEETS_URL || DB.load('sheets_url', '');
+  if (!url) { alert('Please set your Google Sheets Script URL in Settings → Data first.'); return; }
+
+  // Build archive payload — everything for this tax year
+  const archiveData = {
+    invoices:       state.invoices.filter(i => isInTaxYear(i.date, archiveTy)),
+    transactions:   state.transactions.filter(t => isInTaxYear(t.date, archiveTy)),
+    clients:        state.clients,
+    settings:       state.settings,
+    categories:     state.categories,
+    nextInvoiceNum: state.nextInvoiceNum,
+    mtdSummary:     buildPayload().mtdSummary,
+    archivedAt:     new Date().toISOString(),
+  };
+
+  setSyncStatus('syncing');
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'archiveYear', taxYear: label, data: archiveData }),
+    });
+  } catch(e) { /* CORS — likely went through */ }
+
+  // Strip archived year's data from live state, keep clients/settings/categories
+  state.invoices     = state.invoices.filter(i => !isInTaxYear(i.date, archiveTy));
+  state.transactions = state.transactions.filter(t => !isInTaxYear(t.date, archiveTy));
+  // MTD submitted flags for the old year — clear them
+  ['Q1','Q2','Q3','Q4'].forEach(q => DB.save(`mtd_submitted_${archiveTy}_${q}`, false));
+
+  saveState();
+  DB.save(`archived_${label}`, true);
+  DB.save('lastArchivedYear', label);
+
+  // Hide the year-end alert
+  const alertEl = document.getElementById('year-end-alert');
+  if (alertEl) alertEl.style.display = 'none';
+
+  setSyncStatus('synced');
+  initApp();
+  alert(`✓ Year ${label} archived successfully!\n\nGoogle Sheets now has a permanent "💾 Archive ${label}" tab.\nThe live data store has been cleared for ${ty}/${String(ty+1).slice(2)}.`);
+}
+
+// ── Load a previous year for read-only browsing ──────────────
+async function loadPrevYear() {
+  const sel = document.getElementById('prev-year-select');
+  const year = sel ? sel.value : '';
+  if (!year) { alert('Select a year first.'); return; }
+
+  const url = SHEETS_URL || DB.load('sheets_url', '');
+  if (!url) { alert('Google Sheets Script URL not set.'); return; }
+
+  setSyncStatus('syncing');
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'loadYear', taxYear: year }),
+    });
+    const result = await res.json();
+    if (result.status !== 'ok' || !result.data) {
+      alert('Could not load archived year. Try syncing first.');
+      setSyncStatus('error');
+      return;
+    }
+
+    // Save live state so we can return
+    liveStateSnapshot   = JSON.parse(JSON.stringify(state));
+    viewingArchivedYear = year;
+
+    // Load archived data into state (read-only view)
+    applyPayload(result.data);
+    setSyncStatus('synced');
+
+    // Show banner
+    const banner = document.getElementById('prev-year-banner');
+    const lbl    = document.getElementById('prev-year-label');
+    const retBtn = document.getElementById('return-live-btn');
+    if (banner) banner.style.display = 'block';
+    if (lbl)    lbl.textContent = year;
+    if (retBtn) retBtn.style.display = 'inline-flex';
+
+    // Patch saveState to be a no-op while viewing archive
+    window._realSaveState = window.saveState;
+    window.saveState = function() { console.log('saveState suppressed — viewing archive'); };
+
+    initApp();
+    showTab('invoices');
+    alert(`📂 Now viewing ${year} — read-only. No changes will be saved.\n\nClick "↩ Return to Live" in Settings to go back.`);
+
+  } catch(e) {
+    setSyncStatus('offline');
+    alert('Failed to load archived year: ' + e.message);
+  }
+}
+
+// ── Return to live data ───────────────────────────────────────
+function returnToLive() {
+  if (!liveStateSnapshot) return;
+
+  // Restore saveState
+  if (window._realSaveState) {
+    window.saveState = window._realSaveState;
+    delete window._realSaveState;
+  }
+
+  // Restore live state
+  applyPayload(liveStateSnapshot);
+  liveStateSnapshot   = null;
+  viewingArchivedYear = null;
+
+  // Hide banner
+  const banner = document.getElementById('prev-year-banner');
+  const retBtn = document.getElementById('return-live-btn');
+  if (banner) banner.style.display = 'none';
+  if (retBtn) retBtn.style.display = 'none';
+
+  setSyncStatus('local');
+  initApp();
+  showTab('dashboard');
+}
+
+// ── Export year summary as printable PDF ─────────────────────
+function exportYearPDF() {
+  const ty = viewingArchivedYear
+    ? parseInt(viewingArchivedYear.split('-')[0])
+    : currentTaxYear();
+  const label = `${ty}/${String(ty + 1).slice(2)}`;
+
+  const invs  = state.invoices.filter(i => isInTaxYear(i.date, ty)).sort((a,b) => a.number - b.number);
+  const txns  = state.transactions.filter(t => isInTaxYear(t.date, ty)).sort((a,b) => a.date.localeCompare(b.date));
+
+  const flyInc  = txns.filter(t => t.stream === 'flying'   && t.type === 'income' ).reduce((s,t) => s+t.amount, 0);
+  const flyExp  = txns.filter(t => t.stream === 'flying'   && t.type === 'expense').reduce((s,t) => s+t.amount, 0);
+  const propInc = txns.filter(t => t.stream === 'property' && t.type === 'income' ).reduce((s,t) => s+t.amount, 0);
+  const propExp = txns.filter(t => t.stream === 'property' && t.type === 'expense').reduce((s,t) => s+t.amount, 0);
+  const flyProfit  = flyInc  - flyExp;
+  const propProfit = propInc - propExp;
+  const totalProfit = flyProfit + propProfit;
+  const estTax = totalProfit > 12570 ? (totalProfit - 12570) * 0.20 : 0;
+  const f = n => '£' + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+  const quarterRows = ['Q1','Q2','Q3','Q4'].map(q => {
+    const qd   = getQuarterDates(q, ty);
+    const qt   = txns.filter(t => t.date >= qd.start && t.date <= qd.end);
+    const qFly = qt.filter(t => t.stream==='flying'   && t.type==='income' ).reduce((s,t)=>s+t.amount,0)
+               - qt.filter(t => t.stream==='flying'   && t.type==='expense').reduce((s,t)=>s+t.amount,0);
+    const qProp= qt.filter(t => t.stream==='property' && t.type==='income' ).reduce((s,t)=>s+t.amount,0)
+               - qt.filter(t => t.stream==='property' && t.type==='expense').reduce((s,t)=>s+t.amount,0);
+    const sub  = DB.load(`mtd_submitted_${ty}_${q}`, false);
+    return `<tr>
+      <td style="font-weight:600">${q}</td>
+      <td style="color:#6b7280;font-size:11px">${qd.label}</td>
+      <td>${f(qFly)}</td><td>${f(qProp)}</td><td style="font-weight:700">${f(qFly+qProp)}</td>
+      <td>${sub ? '<span style="color:#059669">✓ Submitted</span>' : '<span style="color:#d97706">Pending</span>'}</td>
+    </tr>`;
+  }).join('');
+
+  const invRows = invs.map(i => `<tr>
+    <td style="font-family:monospace">#${i.number}</td>
+    <td>${fmtDate(i.date)}</td><td>${i.clientName}</td>
+    <td style="text-align:right;font-family:monospace;font-weight:700">${f(i.total)}</td>
+    <td><span style="padding:2px 8px;border-radius:10px;font-size:11px;background:${i.status==='paid'?'#d1fae5':i.status==='baddebt'?'#f3f4f6':'#fee2e2'};color:${i.status==='paid'?'#065f46':i.status==='baddebt'?'#6b7280':'#991b1b'}">${i.status}</span></td>
+  </tr>`).join('');
+
+  const s = state.settings;
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><title>Year Summary ${label}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'DM Sans',sans-serif;color:#111;background:#fff;padding:32px;font-size:13px}
+    h1{font-family:'Space Mono',monospace;font-size:22px;font-weight:700;color:#2563eb;margin-bottom:4px}
+    h2{font-size:13px;font-weight:700;color:#374151;margin:24px 0 10px;text-transform:uppercase;letter-spacing:1.5px;border-bottom:2px solid #e5e7eb;padding-bottom:6px}
+    .meta{font-size:12px;color:#6b7280;margin-bottom:24px}
+    .summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:8px}
+    .sum-box{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px}
+    .sum-box .lbl{font-size:10px;color:#9ca3af;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px}
+    .sum-box .val{font-family:'Space Mono',monospace;font-size:20px;font-weight:700}
+    .sum-box .val.green{color:#059669} .sum-box .val.red{color:#dc2626} .sum-box .val.blue{color:#2563eb}
+    table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px}
+    thead tr{background:#f3f4f6} th{padding:8px 10px;text-align:left;font-size:10px;color:#9ca3af;letter-spacing:1.5px;text-transform:uppercase;font-weight:400}
+    td{padding:7px 10px;border-bottom:1px solid #f3f4f6;color:#374151}
+    tr:last-child td{border-bottom:none}
+    .est-tax{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:14px;margin-top:16px;display:flex;justify-content:space-between;align-items:center}
+    .est-tax .lbl{font-size:12px;color:#1e40af} .est-tax .val{font-family:'Space Mono',monospace;font-size:20px;font-weight:700;color:#1e40af}
+    .footer{margin-top:32px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center}
+    @media print{body{padding:16px}@page{margin:12mm}}
+  </style></head><body>
+  <h1>Tax Year Summary — ${label}</h1>
+  <div class="meta">${s.name || 'Tom Newell'} · ${s.email || 'tnewell2@gmail.com'} · Generated ${new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})}</div>
+
+  <h2>Income &amp; Profit</h2>
+  <div class="summary-grid">
+    <div class="sum-box"><div class="lbl">Flying Income</div><div class="val green">${f(flyInc)}</div></div>
+    <div class="sum-box"><div class="lbl">Flying Expenses</div><div class="val red">${f(flyExp)}</div></div>
+    <div class="sum-box"><div class="lbl">Flying Profit</div><div class="val ${flyProfit>=0?'green':'red'}">${f(flyProfit)}</div></div>
+    <div class="sum-box"><div class="lbl">Property Income</div><div class="val green">${f(propInc)}</div></div>
+    <div class="sum-box"><div class="lbl">Property Expenses</div><div class="val red">${f(propExp)}</div></div>
+    <div class="sum-box"><div class="lbl">Property Profit</div><div class="val ${propProfit>=0?'green':'red'}">${f(propProfit)}</div></div>
+  </div>
+  <div class="est-tax">
+    <div class="lbl">Estimated Income Tax (20% above £12,570 personal allowance)<br><small style="color:#93c5fd">Soft landing year — no penalties, but file on time</small></div>
+    <div class="val">${f(estTax)}</div>
+  </div>
+
+  <h2>MTD Quarterly Returns</h2>
+  <table><thead><tr><th>Quarter</th><th>Dates</th><th>Flying Profit</th><th>Property Profit</th><th>Total Profit</th><th>Status</th></tr></thead>
+  <tbody>${quarterRows}</tbody></table>
+
+  <h2>Invoices (${invs.length})</h2>
+  <table><thead><tr><th>#</th><th>Date</th><th>Client</th><th style="text-align:right">Amount</th><th>Status</th></tr></thead>
+  <tbody>${invRows}</tbody></table>
+  <div style="text-align:right;font-family:monospace;font-size:14px;font-weight:700;padding:10px 10px 0;color:#059669">
+    Total invoiced: ${f(invs.filter(i=>i.status!=='baddebt').reduce((s,i)=>s+i.total,0))}
+  </div>
+
+  <div class="footer">${s.name||'Tom Newell'} · UTR: ${s.utr||'—'} · NI: ${s.ni||'—'} · Barclays ${s.accno||'—'} / ${s.sort||'—'}</div>
+  <script>window.onload=()=>window.print()<\/script>
+  </body></html>`);
+  win.document.close();
+}
+
+// ── Hook into initApp to run year checks ─────────────────────
+const _origInitApp = initApp;
+function initApp() {
+  _origInitApp();
+  // Populate archived years list and check for rollover
+  loadArchivedYearsList();
+  if (!viewingArchivedYear) checkYearRollover();
+}
+</script>
