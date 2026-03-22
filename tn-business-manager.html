@@ -1231,6 +1231,16 @@ async function attemptLogin() {
 
     // Render everything now — state is fully set whether from cloud or localStorage
     initApp();
+    // Belt-and-braces: force dashboard visible after all async init completes
+    setTimeout(() => {
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+      const dp = document.getElementById('tab-dashboard');
+      if (dp) dp.classList.add('active');
+      const nb = document.querySelector('.nav-tab');
+      if (nb) nb.classList.add('active');
+      renderDashboard();
+    }, 100);
 
   } else {
     document.getElementById('login-err').textContent = 'Incorrect password. Try again.';
