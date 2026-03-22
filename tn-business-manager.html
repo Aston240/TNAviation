@@ -1279,7 +1279,6 @@ function initApp() {
   loadSettings();
   populateClientSelects();
   updateUnpaidBadge();
-  renderDashboard();
   renderInvoices();
   renderTransactions();
   renderMTD();
@@ -1287,6 +1286,14 @@ function initApp() {
   renderCategoryList();
   const sheetsEl = document.getElementById('settings-bin-id');
   if (sheetsEl) sheetsEl.textContent = SHEETS_URL ? 'Connected via Google Sheets' : 'No Sheets URL set';
+  // Explicitly activate dashboard tab and render it last so it's visible
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  const dashPanel = document.getElementById('tab-dashboard');
+  if (dashPanel) dashPanel.classList.add('active');
+  const dashBtn = document.querySelector('.nav-tab');
+  if (dashBtn) dashBtn.classList.add('active');
+  renderDashboard();
 }
 
 function showTab(tab) {
