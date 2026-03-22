@@ -1296,7 +1296,7 @@ function initApp() {
   renderCategoryList();
   const sheetsEl = document.getElementById('settings-bin-id');
   if (sheetsEl) sheetsEl.textContent = SHEETS_URL ? 'Connected via Google Sheets' : 'No Sheets URL set';
-  // Explicitly activate dashboard tab and render it last so it's visible
+  // Activate dashboard tab and render
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   const dashPanel = document.getElementById('tab-dashboard');
@@ -1304,6 +1304,9 @@ function initApp() {
   const dashBtn = document.querySelector('.nav-tab');
   if (dashBtn) dashBtn.classList.add('active');
   renderDashboard();
+  // Year-end checks (defined later in page — safe to call after DOM ready)
+  if (typeof loadArchivedYearsList === 'function') loadArchivedYearsList();
+  if (typeof checkYearRollover === 'function' && !viewingArchivedYear) checkYearRollover();
 }
 
 function showTab(tab) {
@@ -3468,12 +3471,5 @@ function exportYearPDF() {
   win.document.close();
 }
 
-// ── Hook into initApp to run year checks ─────────────────────
-const _origInitApp = initApp;
-function initApp() {
-  _origInitApp();
-  // Populate archived years list and check for rollover
-  loadArchivedYearsList();
-  if (!viewingArchivedYear) checkYearRollover();
-}
+// Year-end checks now called directly from initApp
 </script>
