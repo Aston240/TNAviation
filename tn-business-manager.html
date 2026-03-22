@@ -1038,17 +1038,19 @@ async function loadFromSheets() {
     });
     if (!res.ok) throw new Error('Load failed: ' + res.status);
     const result = await res.json();
+    console.log('[Sheets load] status:', result.status, '| has data:', !!result.data, '| updatedAt:', result.data?.updatedAt);
     if (result.status === 'ok' && result.data) {
       applyPayload(result.data);
       setSyncStatus('synced');
-      console.log('Loaded from Sheets, updatedAt:', result.data.updatedAt);
       return true;
     }
-    console.warn('Sheets load: no data yet, using localStorage');
+    // Data Store is empty (new script deploy or fresh sheet) — push local data up
+    console.warn('[Sheets load] No data in sheet — pushing local data up now');
     setSyncStatus('local');
+    pushToSheets(true); // fire-and-forget push so data arrives in new script
     return false;
   } catch(e) {
-    console.warn('Load from Sheets failed:', e.message);
+    console.warn('[Sheets load] failed:', e.message);
     setSyncStatus('offline');
     return false;
   }
