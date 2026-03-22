@@ -1225,18 +1225,12 @@ async function attemptLogin() {
     document.getElementById('dash-alerts').innerHTML = '';
     setSyncStatus('syncing');
 
-    // Load from cloud first — await it so dashboard renders with real data
+    // Load from cloud first, then render with whatever data we have
     const loaded = await loadFromSheets();
     if (!loaded) setSyncStatus('local');
 
-    // Now render everything with the correct data
+    // Render everything now — state is fully set whether from cloud or localStorage
     initApp();
-
-    // If load failed but we have local data, push it up to the sheet
-    if (!loaded && SHEETS_URL && state.invoices.length > 0) {
-      console.log('Load failed — pushing local data to Sheets');
-      pushToSheets(true);
-    }
 
   } else {
     document.getElementById('login-err').textContent = 'Incorrect password. Try again.';
@@ -1285,18 +1279,14 @@ function initApp() {
   loadSettings();
   populateClientSelects();
   updateUnpaidBadge();
-  // Render dashboard immediately — paint it first before anything else
   renderDashboard();
-  // Defer the heavier renders so the dashboard is visible straight away
-  requestAnimationFrame(() => {
-    renderInvoices();
-    renderTransactions();
-    renderMTD();
-    renderClientList();
-    renderCategoryList();
-    const sheetsEl = document.getElementById('settings-bin-id');
-    if (sheetsEl) sheetsEl.textContent = SHEETS_URL ? 'Connected via Google Sheets' : 'No Sheets URL set';
-  });
+  renderInvoices();
+  renderTransactions();
+  renderMTD();
+  renderClientList();
+  renderCategoryList();
+  const sheetsEl = document.getElementById('settings-bin-id');
+  if (sheetsEl) sheetsEl.textContent = SHEETS_URL ? 'Connected via Google Sheets' : 'No Sheets URL set';
 }
 
 function showTab(tab) {
@@ -3198,17 +3188,8 @@ async function checkYearRollover() {
     alert.innerHTML = `⚠ <strong>New tax year has started.</strong> Your ${prevLabel} data is still live. <a href="#" onclick="showTab('settings');event.preventDefault()" style="color:inherit;font-weight:600;text-decoration:underline">Go to Settings → Data → Year End</a> to archive it safely before adding 2026/27 data.`;
   }
 
-  // Also show a one-time modal prompt
-  const shown = DB.load('yearRolloverPromptShown_' + prevLabel, false);
-  if (!shown) {
-    DB.save('yearRolloverPromptShown_' + prevLabel, true);
-    setTimeout(() => {
-      if (confirm(`📅 The tax year has rolled over to ${ty}/${ty+1}.\n\nWould you like to archive your ${prevLabel} data now?\n\nThis will:\n• Save ${prevLabel} permanently to Google Sheets\n• Start the live data store fresh for ${ty}/${String(ty+1).slice(2)}\n\nYou can also do this later in Settings → Data → Year End.`)) {
-        showTab('settings');
-        setTimeout(() => archiveYearPrompt(), 300);
-      }
-    }, 1500);
-  }
+  // Mark as prompted so we don't show again this session
+  DB.save('yearRolloverPromptShown_' + prevLabel, true);
 }
 
 // ── Populate prev-year dropdown from Sheets ──────────────────
