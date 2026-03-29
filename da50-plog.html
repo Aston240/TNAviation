@@ -143,9 +143,9 @@ body {
   display: none;
 }
 .status.visible { display: block; }
-.status.loading { color: var(--accent); background: rgba(79,195,247,0.08);  border: 1px solid rgba(79,195,247,0.2); }
-.status.error   { color: var(--danger); background: rgba(239,68,68,0.08);   border: 1px solid rgba(239,68,68,0.2); }
-.status.ok      { color: var(--ok);     background: rgba(34,197,94,0.08);   border: 1px solid rgba(34,197,94,0.2); }
+.status.loading { color: var(--accent); background: rgba(79,195,247,0.08); border: 1px solid rgba(79,195,247,0.2); }
+.status.error   { color: var(--danger); background: rgba(239,68,68,0.08);  border: 1px solid rgba(239,68,68,0.2); }
+.status.ok      { color: var(--ok);     background: rgba(34,197,94,0.08);  border: 1px solid rgba(34,197,94,0.2); }
 
 #plog-area { padding: 24px; }
 #plog-area:empty::after {
@@ -160,6 +160,10 @@ body {
 
 /* ══════════════════════════════════════
    PLOG DOCUMENT
+   A4 landscape = 297mm wide.
+   Print margins 8mm each side = 281mm usable.
+   Nav data cols: ~75% = ~211mm
+   Notes col:     ~25% = ~70mm
 ══════════════════════════════════════ */
 .plog-doc {
   background: #fff;
@@ -172,19 +176,19 @@ body {
   box-shadow: 0 4px 40px rgba(0,0,0,0.5);
 }
 
-/* Header row */
+/* Header */
 .plog-header {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   border: 1.5px solid #000;
 }
 .plog-hcell {
-  padding: 2px 5px;
+  padding: 3px 6px;
   border-right: 1px solid #000;
 }
 .plog-hcell:last-child { border-right: none; }
 .plog-hcell .lbl {
-  font-size: 5pt;
+  font-size: 5.5pt;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #777;
@@ -192,7 +196,7 @@ body {
   line-height: 1.3;
 }
 .plog-hcell .val {
-  font-size: 8.5pt;
+  font-size: 9pt;
   font-weight: 600;
   display: block;
   line-height: 1.5;
@@ -204,16 +208,16 @@ body {
   grid-template-columns: repeat(5, 1fr);
   border: 1.5px solid #000;
   border-top: 1px solid #000;
-  margin-bottom: 4px;
+  margin-bottom: 5px;
 }
 .plog-tcell {
-  padding: 2px 5px;
+  padding: 3px 6px;
   border-right: 1px solid #000;
-  min-height: 23px;
+  min-height: 24px;
 }
 .plog-tcell:last-child { border-right: none; }
 .plog-tcell .lbl {
-  font-size: 5pt;
+  font-size: 5.5pt;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #999;
@@ -222,42 +226,58 @@ body {
 }
 .plog-tcell .line {
   display: block;
-  height: 11px;
+  height: 12px;
   border-bottom: 1px solid #ccc;
-  width: 90%;
+  width: 88%;
 }
 
-/* ── MAIN TABLE ── */
+/* ── MAIN TABLE ──
+   table-layout: fixed with explicit % widths.
+   13 nav cols share 75%, notes col gets 25%.
+   Nav col percentages are of the full 100% table width,
+   so they collectively add to 75%.
+
+   Col breakdown (% of total table width):
+     WPT   6%
+     FREQ  5%
+     FL    3.5%
+     TRK   4%    (stacked trk/hdg)
+     WIND  4.5%
+     SPD   3.5%  (stacked tas/gs)
+     NM    3.5%
+     ETE   3.5%
+     ATA   4%
+     MSA   3.5%
+     PLAN  4%
+     ACT   3%
+     +/-   3%
+     ──────────
+     nav   55.5%  ... hmm let's just use auto and let the named % drive it
+*/
 .plog-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 7pt;
+  font-size: 8pt;
   font-family: 'IBM Plex Mono', monospace;
   table-layout: fixed;
 }
 
-/*
-  Column widths. The nav data columns are kept tight.
-  The NOTES column is wide — takes up the space freed by
-  compressing everything else.
-
-  Total A4 landscape printable ≈ 277mm content width.
-  Nav cols ≈ 195mm, notes ≈ 55mm, leaving ~27mm for borders.
-*/
-.plog-table col.c-wpt  { width: 42px; }   /* waypoint ident */
-.plog-table col.c-freq { width: 36px; }   /* navaid freq */
-.plog-table col.c-fl   { width: 24px; }   /* flight level */
-.plog-table col.c-trk  { width: 28px; }   /* trk/hdg stacked */
-.plog-table col.c-wind { width: 30px; }   /* wind */
-.plog-table col.c-spd  { width: 24px; }   /* tas/gs stacked */
-.plog-table col.c-dist { width: 22px; }   /* dist nm */
-.plog-table col.c-ete  { width: 24px; }   /* ete */
-.plog-table col.c-ata  { width: 26px; }   /* ata */
-.plog-table col.c-msa  { width: 24px; }   /* msa */
-.plog-table col.c-fp   { width: 24px; }   /* fuel planned */
-.plog-table col.c-fa   { width: 22px; }   /* fuel actual (blank) */
-.plog-table col.c-fd   { width: 22px; }   /* fuel +/- (blank) */
-.plog-table col.c-notes { width: auto; }  /* ATC notes — fills remainder */
+/* Nav data columns — each sized generously so text is readable */
+.plog-table col.c-wpt   { width: 7%;   }
+.plog-table col.c-freq  { width: 6%;   }
+.plog-table col.c-fl    { width: 4%;   }
+.plog-table col.c-trk   { width: 5%;   }
+.plog-table col.c-wind  { width: 6%;   }
+.plog-table col.c-spd   { width: 4%;   }
+.plog-table col.c-dist  { width: 4.5%; }
+.plog-table col.c-ete   { width: 5%;   }
+.plog-table col.c-ata   { width: 5%;   }
+.plog-table col.c-msa   { width: 4.5%; }
+.plog-table col.c-fp    { width: 5%;   }
+.plog-table col.c-fa    { width: 4%;   }
+.plog-table col.c-fd    { width: 4%;   }
+/* Notes: everything that's left (~25%) */
+.plog-table col.c-notes { width: 26%;  }
 
 /* Thead */
 .plog-table thead tr {
@@ -267,31 +287,31 @@ body {
   print-color-adjust: exact;
 }
 .plog-table thead th {
-  padding: 2px 3px;
+  padding: 3px 4px;
   text-align: center;
-  font-size: 5.5pt;
+  font-size: 6.5pt;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   border: 1px solid #000;
-  line-height: 1.25;
+  line-height: 1.3;
   overflow: hidden;
 }
 .plog-table thead th.left { text-align: left; }
 
-/* Group header row */
+/* Group sub-header */
 .plog-table thead tr.grp {
   background: #2d3561;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
 .plog-table thead tr.grp th {
-  font-size: 5pt;
-  padding: 1px 3px;
-  letter-spacing: 0.06em;
+  font-size: 5.5pt;
+  padding: 1px 4px;
+  letter-spacing: 0.07em;
 }
 
-/* Body */
+/* Body rows */
 .plog-table tbody tr { border-bottom: 1px solid #e0e0e0; }
 .plog-table tbody tr:nth-child(even) { background: #f8f9fb; }
 .plog-table tbody tr.dest-row {
@@ -302,36 +322,39 @@ body {
 }
 
 .plog-table tbody td {
-  padding: 2px 3px;
+  padding: 3px 4px;
   border: 1px solid #ddd;
   text-align: center;
   vertical-align: middle;
   white-space: nowrap;
   overflow: hidden;
-  font-size: 7pt;
+  font-size: 8pt;
 }
 .plog-table tbody td.wpt {
   font-weight: 700;
-  font-size: 7.5pt;
+  font-size: 8.5pt;
   text-align: left;
 }
-.plog-table tbody td.freq { font-size: 6pt; color: #555; }
+.plog-table tbody td.freq {
+  font-size: 7pt;
+  color: #444;
+}
 
-/* Stacked cells — TRK/HDG, TAS/GS */
-td.stacked, th.stacked-h { padding: 1px 3px !important; }
+/* Stacked cells */
+td.stacked, th.stacked-h { padding: 1px 4px !important; }
 .stacked .top, .stacked-h .top {
   display: block;
   border-bottom: 1px solid #ddd;
   padding-bottom: 1px;
   margin-bottom: 1px;
-  line-height: 1.3;
+  line-height: 1.35;
 }
 .stacked-h .top { border-color: rgba(255,255,255,0.2); }
-.stacked .bot, .stacked-h .bot { display: block; line-height: 1.3; }
-.stacked .bot   { color: #555; }
+.stacked .bot, .stacked-h .bot { display: block; line-height: 1.35; }
+.stacked .bot   { color: #444; }
 .stacked-h .bot { opacity: 0.75; }
 
-/* Fuel: planned */
+/* Fuel planned */
 .plog-table tbody td.fuel-p {
   background: #fffbeb;
   font-weight: 700;
@@ -339,13 +362,13 @@ td.stacked, th.stacked-h { padding: 1px 3px !important; }
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
-/* Fuel: actual — blank for pilot to write */
+/* Fuel actual — blank */
 .plog-table tbody td.fuel-a {
   background: #f0fdf4;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
-/* Fuel: diff — blank for pilot to write +/- */
+/* Fuel diff — blank */
 .plog-table tbody td.fuel-d {
   background: #fff7ed;
   -webkit-print-color-adjust: exact;
@@ -358,53 +381,53 @@ td.stacked, th.stacked-h { padding: 1px 3px !important; }
 /* ATA */
 .plog-table tbody td.ata-cell { background: #f5f5f5; }
 .ata-input {
-  width: 24px;
+  width: 32px;
   border: none;
   border-bottom: 1px solid #999;
   background: transparent;
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 7pt;
+  font-size: 8pt;
   text-align: center;
   outline: none;
   padding: 0;
 }
 
-/* Notes cell — wide, blank, with a ruled underline at bottom of cell */
+/* Notes cell — wide blank row cell, left-border separator, faint underline */
 .plog-table tbody td.notes-cell {
   background: #fff;
-  border-left: 2px solid #aaa;   /* visual separator from data cols */
+  border-left: 2px solid #888;
   text-align: left;
-  /* faint ruled line at bottom of each cell so the pilot can write on it */
-  background-image: linear-gradient(to bottom, transparent calc(100% - 1px), #ddd calc(100% - 1px));
+  white-space: normal;
+  /* faint ruled line so pilot can write on it */
+  background-image: linear-gradient(
+    to bottom,
+    transparent calc(100% - 1px),
+    #e0e0e0 calc(100% - 1px)
+  );
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
-  min-width: 0;
 }
-/* Notes header */
 .plog-table thead th.notes-hdr {
-  background: #2d3561;
-  border-left: 2px solid #aaa;
+  border-left: 2px solid #888;
   text-align: left;
   padding-left: 5px;
-  -webkit-print-color-adjust: exact;
-  print-color-adjust: exact;
 }
 
 /* Footer */
 .plog-footer {
-  margin-top: 4px;
+  margin-top: 5px;
   display: grid;
   grid-template-columns: 2fr 1fr;
   border: 1px solid #bbb;
 }
 .plog-footer-cell {
-  padding: 2px 5px;
+  padding: 3px 6px;
   border-right: 1px solid #bbb;
-  min-height: 18px;
+  min-height: 20px;
 }
 .plog-footer-cell:last-child { border-right: none; }
 .plog-footer-cell .lbl {
-  font-size: 5pt;
+  font-size: 5.5pt;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #aaa;
@@ -574,8 +597,6 @@ async function generate() {
   }
 }
 
-// Demo data — EGTK→EGPE from uploaded briefing pack.
-// msa = realistic AR terrain corridor values (ft MSL).
 function buildDemoData(dep, dest, eobt, fpl, callsign) {
   const legs = [
     { ident:'EGTK',  fl:'',     mt:null,mh:null,wd:247,ws:27, tas:null,gs:null, dist:9.7,  ete:'00:07', burn:0,    msa:null, freq:'' },
@@ -673,36 +694,35 @@ function renderPlog(data, blockFuel) {
       <col class="c-notes">
     </colgroup>
     <thead>
-      <!-- Group header row -->
       <tr class="grp">
         <th colspan="2" class="left">Waypoint</th>
         <th>Alt</th>
         <th>Nav</th>
         <th>Met</th>
         <th>Spd</th>
-        <th>Leg</th>
-        <th>Time</th>
+        <th colspan="2">Leg</th>
         <th>&nbsp;</th>
         <th>Clear</th>
         <th colspan="3">Fuel (USG)</th>
-        <th class="notes-hdr">ATC / Clearance Notes</th>
+        <th class="notes-hdr left">ATC / Clearance Notes</th>
       </tr>
-      <!-- Column header row -->
       <tr>
         <th class="left">WPT</th>
         <th>FREQ</th>
         <th>FL</th>
         <th class="stacked-h"><span class="top">TRK°M</span><span class="bot">HDG°M</span></th>
-        <th>WIND<br><span style="font-size:4.5pt;opacity:.7">D/V</span></th>
+        <th>WIND<br><span style="font-size:5pt;opacity:.7">D/V</span></th>
         <th class="stacked-h"><span class="top">TAS</span><span class="bot">GS</span></th>
         <th>NM</th>
         <th>ETE</th>
-        <th>ATA<br><span style="font-size:4.5pt;opacity:.7">UTC</span></th>
-        <th>MSA<br><span style="font-size:4.5pt;opacity:.7">ft</span></th>
+        <th>ATA<br><span style="font-size:5pt;opacity:.7">UTC</span></th>
+        <th>MSA<br><span style="font-size:5pt;opacity:.7">ft</span></th>
         <th>PLAN</th>
         <th>ACT</th>
         <th>+/−</th>
-        <th class="notes-hdr left" style="font-size:5pt;letter-spacing:0.06em;">FREQ · LEVEL · ATC INSTRUCTIONS</th>
+        <th class="notes-hdr left" style="font-size:5.5pt;letter-spacing:0.06em;font-weight:400;opacity:.8;">
+          Freq &nbsp;·&nbsp; Level &nbsp;·&nbsp; ATC Instructions
+        </th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -712,7 +732,7 @@ function renderPlog(data, blockFuel) {
   <div class="plog-footer">
     <div class="plog-footer-cell">
       <span class="lbl">Route</span>
-      <span style="font-size:5pt;word-break:break-all;line-height:1.4;">${data.fplan || ''}</span>
+      <span style="font-size:5.5pt;word-break:break-all;line-height:1.4;">${data.fplan || ''}</span>
     </div>
     <div class="plog-footer-cell"><span class="lbl">PIC Signature</span></div>
   </div>`;
