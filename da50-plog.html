@@ -585,13 +585,16 @@ async function testConnection() {
   if (!url) { setStatus('No GAS URL configured', 'error'); return; }
   setStatus('Testing...', 'loading');
   try {
-    const resp = await fetch(url + '?action=ping', { method: 'GET' });
+    const resp = await fetch(url, {
+      method: 'POST',
+      body: new URLSearchParams({ action: 'ping' })
+    });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
     if (data.ok) {
       setStatus('Connected — AutoRouter credentials will be checked on first route request', 'ok');
     } else {
-      setStatus('GAS reachable but returned unexpected response', 'error');
+      setStatus('GAS reachable but returned: ' + JSON.stringify(data), 'error');
     }
   } catch(e) { setStatus('Connection failed: ' + e.message, 'error'); }
 }
@@ -619,13 +622,20 @@ async function generate() {
   setStatus('Fetching route from AutoRouter...', 'loading');
 
   try {
-    // GET request — GAS serves JSON cross-origin on GET
-    const url = gasUrl
-      + '?action=getRoute'
-      + '&fpl=' + encodeURIComponent(fullFpl)
-      + '&terraincorridor=' + corridor;
+    // GAS strips query params on redirect — use POST with form body instead.
+    // GAS e.parameter reads both GET query strings and POST form fields,
+    // and POST bodies survive the GAS redirect correctly.
+    const body = new URLSearchParams({
+      action: 'getRoute',
+      fpl: fullFpl,
+      terraincorridor: corridor
+    });
 
-    const resp = await fetch(url, { method: 'GET' });
+    const resp = await fetch(gasUrl, {
+      method: 'POST',
+      body: body
+      // no Content-Type header — let browser set application/x-www-form-urlencoded
+    });
 
     if (!resp.ok) {
       throw new Error('GAS returned HTTP ' + resp.status);
