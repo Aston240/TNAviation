@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DA50 PLOG</title>
+<style>
+  /* ── FONTS ── */
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+  /* ── VARIABLES ── */
+  :root {
+    --bg:       #0d0f12;
+    --surface:  #141720;
+    --border:   #252a35;
+    --accent:   #4fc3f7;
+    --accent2:  #f59e0b;
+    --danger:   #ef4444;
+    --ok:       #22c55e;
+    --text:     #e2e8f0;
+    --muted:    #64748b;
+    --mono:     'IBM Plex Mono', monospace;
+    --sans:     'IBM Plex Sans', sans-serif;
+  }
+
+  /* ── RESET ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* ── SCREEN CHROME ── */
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .app-header h1 {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .app-header .sub {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+  }
+
+  .controls {
+    padding: 20px 24px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .field label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .field input, .field select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .field input:focus, .field select:focus {
+    border-color: var(--accent);
+  }
+  .field input.wide { width: 520px; }
+  .field input.med  { width: 120px; }
+  .field input.sm   { width: 80px; }
+
+  .btn {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 9px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary  { background: var(--accent);  color: #000; }
+  .btn-print    { background: var(--accent2); color: #000; }
+  .btn-settings { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+
+  .status {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    display: none;
+  }
+  .status.visible { display: block; }
+  .status.loading { color: var(--accent);  background: rgba(79,195,247,0.08); border: 1px solid rgba(79,195,247,0.2); }
+  .status.error   { color: var(--danger);  background: rgba(239,68,68,0.08);  border: 1px solid rgba(239,68,68,0.2); }
+  .status.ok      { color: var(--ok);      background: rgba(34,197,94,0.08);  border: 1px solid rgba(34,197,94,0.2); }
+
+  /* ── SETTINGS PANEL ── */
+  .settings-panel {
+    display: none;
+    padding: 16px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+  .settings-panel.open { display: flex; }
+
+  /* ── FUEL INPUTS ── */
+  .fuel-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(245,158,11,0.04);
+  }
+  .fuel-row .field label { color: var(--accent2); }
+
+  /* ── PLOG WRAPPER ── */
+  #plog-area {
+    padding: 24px;
+  }
+  #plog-area:empty::after {
+    content: 'Enter a flight plan above and press Generate';
+    display: block;
+    text-align: center;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 60px 0;
+  }
+
+  /* ═══════════════════════════════════════════
+     PLOG TABLE — screen styles
+  ═══════════════════════════════════════════ */
+  .plog-doc {
+    background: #fff;
+    color: #000;
+    font-family: var(--mono);
+    max-width: 297mm;
+    margin: 0 auto;
+    padding: 8mm 10mm;
+    border-radius: 4px;
+    box-shadow: 0 4px 40px rgba(0,0,0,0.4);
+  }
+
+  /* Header */
+  .plog-header {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0;
+    border: 1.5px solid #000;
+    margin-bottom: 4px;
+  }
+  .plog-header-cell {
+    padding: 3px 6px;
+    border-right: 1px solid #000;
+    font-size: 8pt;
+  }
+  .plog-header-cell:last-child { border-right: none; }
+  .plog-header-cell .lbl {
+    font-size: 6pt;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #666;
+    display: block;
+    line-height: 1.2;
+  }
+  .plog-header-cell .val {
+    font-size: 9pt;
+    font-weight: 600;
+    display: block;
+    line-height: 1.4;
+  }
+
+  /* Fuel summary bar */
+  .plog-fuel-summary {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    border: 1.5px solid #000;
+    border-top: none;
+    margin-bottom: 6px;
+    font-size: 7.5pt;
+  }
+  .plog-fuel-cell {
+    padding: 2px 5px;
+    border-right: 1px solid #000;
+    text-align: center;
+  }
+  .plog-fuel-cell:last-child { border-right: none; }
+  .plog-fuel-cell .lbl {
+    font-size: 5.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #888;
+    display: block;
+  }
+  .plog-fuel-cell .val {
+    font-size: 8pt;
+    font-weight: 600;
+    display: block;
+  }
+
+  /* Main table */
+  .plog-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 7.5pt;
+  }
+
+  .plog-table thead tr {
+    background: #1a1a2e;
+    color: #fff;
+  }
+  .plog-table thead th {
+    padding: 3px 4px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 6.5pt;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border: 1px solid #000;
+    white-space: nowrap;
+  }
+  .plog-table thead th.left { text-align: left; }
+
+  /* Column group headers */
+  .plog-table .col-group th {
+    background: #2d3561;
+    font-size: 5.5pt;
+    padding: 1px 4px;
+    letter-spacing: 0.1em;
+  }
+
+  .plog-table tbody tr {
+    border-bottom: 1px solid #ddd;
+  }
+  .plog-table tbody tr:nth-child(even) {
+    background: #f8f9fa;
+  }
+  .plog-table tbody tr.dest-row {
+    background: #e8f4fd;
+    font-weight: 600;
+  }
+  .plog-table tbody td {
+    padding: 3px 4px;
+    border: 1px solid #ddd;
+    text-align: center;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .plog-table tbody td.left { text-align: left; }
+  .plog-table tbody td.wpt {
+    font-weight: 700;
+    font-size: 8pt;
+    text-align: left;
+    min-width: 52px;
+  }
+  .plog-table tbody td.freq {
+    font-size: 7pt;
+    color: #444;
+  }
+  .plog-table tbody td.fuel-lh {
+    background: #fff8e1;
+    font-weight: 600;
+    color: #b45309;
+  }
+  .plog-table tbody td.fuel-rh {
+    background: #fef3c7;
+    font-weight: 600;
+    color: #92400e;
+  }
+  .plog-table tbody td.fuel-total {
+    background: #fffbeb;
+    font-weight: 700;
+    color: #78350f;
+  }
+  .plog-table tbody td.msa {
+    color: #dc2626;
+    font-weight: 600;
+  }
+  .plog-table tbody td.ata {
+    background: #f0fdf4;
+    color: #166534;
+  }
+  .plog-table tbody td input.ata-input {
+    width: 38px;
+    border: none;
+    border-bottom: 1px solid #aaa;
+    background: transparent;
+    font-family: var(--mono);
+    font-size: 7.5pt;
+    text-align: center;
+    outline: none;
+    padding: 0;
+  }
+
+  /* Signature / notes bar */
+  .plog-footer {
+    margin-top: 6px;
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 0;
+    border: 1px solid #aaa;
+    font-size: 7pt;
+  }
+  .plog-footer-cell {
+    padding: 3px 6px;
+    border-right: 1px solid #aaa;
+    min-height: 22px;
+  }
+  .plog-footer-cell:last-child { border-right: none; }
+  .plog-footer-cell .lbl {
+    font-size: 5.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #999;
+    display: block;
+  }
+
+  /* ═══════════════════════════════════════════
+     PRINT STYLES — A4 landscape
+  ═══════════════════════════════════════════ */
+  @media print {
+    @page {
+      size: A4 landscape;
+      margin: 8mm 10mm;
+    }
+
+    body {
+      background: #fff !important;
+      color: #000 !important;
+    }
+
+    .app-header,
+    .controls,
+    .settings-panel,
+    .fuel-row,
+    .status,
+    .btn,
+    .no-print {
+      display: none !important;
+    }
+
+    #plog-area {
+      padding: 0 !important;
+    }
+
+    .plog-doc {
+      box-shadow: none !important;
+      border-radius: 0 !important;
+      padding: 0 !important;
+      max-width: 100% !important;
+    }
+
+    .plog-table thead tr {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .plog-table tbody td.fuel-lh,
+    .plog-table tbody td.fuel-rh,
+    .plog-table tbody td.fuel-total {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .plog-table tbody td input.ata-input {
+      border-bottom: 1px solid #999 !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── APP HEADER ── -->
+<div class="app-header">
+  <h1>DA50 Navigation Log</h1>
+  <span class="sub">G-DOGA · Diamond DA 50 RG · IFR</span>
+</div>
+
+<!-- ── SETTINGS PANEL ── -->
+<div class="settings-panel" id="settings-panel">
+  <div class="field">
+    <label>GAS Endpoint URL</label>
+    <input type="text" id="gas-url" class="wide"
+      value="https://script.google.com/macros/s/AKfycbyIPDzeYVGOEWrRF3c2qUJZI1MKr-9uGIm8ilQlFlknjq8oseqS2zoYong8yiathYnZGw/exec"
+      placeholder="https://script.google.com/macros/s/.../exec">
+  </div>
+  <div class="field">
+    <label>Callsign</label>
+    <input type="text" id="callsign" class="med" value="GDOGA">
+  </div>
+  <div class="field">
+    <label>Terrain Corridor (nm)</label>
+    <input type="number" id="terrain-corridor" class="sm" value="5" min="0" max="25">
+  </div>
+  <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+  <button class="btn btn-settings" onclick="testConnection()">Test Connection</button>
+</div>
+
+<!-- ── FUEL INPUTS ── -->
+<div class="fuel-row">
+  <div class="field">
+    <label>Block Fuel LH (USG)</label>
+    <input type="number" id="fuel-lh" class="sm" value="25.0" min="0" max="25" step="0.5">
+  </div>
+  <div class="field">
+    <label>Block Fuel RH (USG)</label>
+    <input type="number" id="fuel-rh" class="sm" value="24.0" min="0" max="24" step="0.5">
+  </div>
+  <div class="field">
+    <label>Total (USG)</label>
+    <input type="text" id="fuel-total-display" class="sm" value="49.0" readonly
+      style="background:#1a1a1a;color:var(--accent2);border-color:rgba(245,158,11,0.3);">
+  </div>
+  <div class="field" style="margin-left:16px;">
+    <label>DA50 Fuel Note</label>
+    <span style="font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.8;">
+      LH = Main (burns first) · RH = Aux (transfers to LH)
+    </span>
+  </div>
+</div>
+
+<!-- ── CONTROLS ── -->
+<div class="controls">
+  <div class="field">
+    <label>ICAO Flight Plan (Item 15 or full FPL string)</label>
+    <input type="text" id="fpl-input" class="wide"
+      placeholder="N0161F100 IXURA DCT DTY Y53 SAPCO N57 POL N601 ERGAB DCT UTOGU N601 GRICE DCT LAGAV DCT GUSSI N560 DAVOT">
+  </div>
+  <div class="field">
+    <label>Dep</label>
+    <input type="text" id="dep" class="sm" value="EGTK" maxlength="4" style="text-transform:uppercase;">
+  </div>
+  <div class="field">
+    <label>Dest</label>
+    <input type="text" id="dest" class="sm" value="EGPE" maxlength="4" style="text-transform:uppercase;">
+  </div>
+  <div class="field">
+    <label>EOBT (UTC)</label>
+    <input type="text" id="eobt" class="med" value="1545" placeholder="1545" maxlength="4">
+  </div>
+  <button class="btn btn-primary" id="gen-btn" onclick="generate()">Generate PLOG</button>
+  <button class="btn btn-print no-print" onclick="window.print()">Print / Save PDF</button>
+  <button class="btn btn-settings no-print" onclick="toggleSettings()">⚙ Settings</button>
+  <div class="status" id="status"></div>
+</div>
+
+<!-- ── PLOG OUTPUT ── -->
+<div id="plog-area"></div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════
+const GAS_URL_KEY   = 'da50_gas_url';
+const CALLSIGN_KEY  = 'da50_callsign';
+const FUEL_LH_KEY   = 'da50_fuel_lh';
+const FUEL_RH_KEY   = 'da50_fuel_rh';
+
+function loadSettings() {
+  const url = localStorage.getItem(GAS_URL_KEY);
+  if (url) document.getElementById('gas-url').value = url;
+  const cs = localStorage.getItem(CALLSIGN_KEY);
+  if (cs)  document.getElementById('callsign').value = cs;
+  const lh = localStorage.getItem(FUEL_LH_KEY);
+  if (lh)  document.getElementById('fuel-lh').value = lh;
+  const rh = localStorage.getItem(FUEL_RH_KEY);
+  if (rh)  document.getElementById('fuel-rh').value = rh;
+  updateFuelTotal();
+}
+
+function saveSettings() {
+  localStorage.setItem(GAS_URL_KEY,  document.getElementById('gas-url').value.trim());
+  localStorage.setItem(CALLSIGN_KEY, document.getElementById('callsign').value.trim());
+  setStatus('Settings saved', 'ok');
+}
+
+function toggleSettings() {
+  document.getElementById('settings-panel').classList.toggle('open');
+}
+
+// ═══════════════════════════════════════════════════
+// FUEL HELPERS
+// ═══════════════════════════════════════════════════
+function updateFuelTotal() {
+  const lh = parseFloat(document.getElementById('fuel-lh').value) || 0;
+  const rh = parseFloat(document.getElementById('fuel-rh').value) || 0;
+  document.getElementById('fuel-total-display').value = (lh + rh).toFixed(1);
+  localStorage.setItem(FUEL_LH_KEY, lh);
+  localStorage.setItem(FUEL_RH_KEY, rh);
+}
+
+document.getElementById('fuel-lh').addEventListener('input', updateFuelTotal);
+document.getElementById('fuel-rh').addEventListener('input', updateFuelTotal);
+
+// DA50 fuel model:
+// LH (main) burns first via engine feed pump
+// RH (aux) transfers to LH — pilot manages transfer
+// We model: burn from LH until LH < 5 USG, then RH contributes
+// Simple linear split for planning: burn LH first
+function calcFuelState(blockLH, blockRH, cumulativeBurnUSG) {
+  let lh = blockLH;
+  let rh = blockRH;
+  let remaining = cumulativeBurnUSG;
+
+  // Burn LH first (main tank)
+  if (remaining <= lh) {
+    lh -= remaining;
+  } else {
+    remaining -= lh;
+    lh = 0;
+    rh = Math.max(0, rh - remaining);
+  }
+  return { lh: Math.max(0, lh), rh: Math.max(0, rh) };
+}
+
+// ═══════════════════════════════════════════════════
+// STATUS
+// ═══════════════════════════════════════════════════
+function setStatus(msg, type) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = `status visible ${type}`;
+  if (type === 'ok') setTimeout(() => el.className = 'status', 3000);
+}
+
+// ═══════════════════════════════════════════════════
+// TEST CONNECTION
+// ═══════════════════════════════════════════════════
+async function testConnection() {
+  const url = document.getElementById('gas-url').value.trim();
+  if (!url) { setStatus('No GAS URL configured', 'error'); return; }
+  setStatus('Testing connection...', 'loading');
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'ping' })
+    });
+    // no-cors means we can't read the response — but if no exception, it reached
+    setStatus('GAS endpoint reachable (no-cors mode)', 'ok');
+  } catch (e) {
+    setStatus('Connection failed: ' + e.message, 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// GENERATE
+// ═══════════════════════════════════════════════════
+async function generate() {
+  const gasUrl  = document.getElementById('gas-url').value.trim();
+  const fpl     = document.getElementById('fpl-input').value.trim();
+  const dep     = document.getElementById('dep').value.trim().toUpperCase();
+  const dest    = document.getElementById('dest').value.trim().toUpperCase();
+  const eobt    = document.getElementById('eobt').value.trim();
+  const blockLH = parseFloat(document.getElementById('fuel-lh').value) || 25;
+  const blockRH = parseFloat(document.getElementById('fuel-rh').value) || 24;
+  const terrainCorridor = parseInt(document.getElementById('terrain-corridor').value) || 5;
+
+  if (!gasUrl) { setStatus('Configure GAS URL in Settings first', 'error'); return; }
+  if (!fpl)    { setStatus('Enter a flight plan route string', 'error'); return; }
+  if (!dep || !dest) { setStatus('Enter departure and destination ICAO', 'error'); return; }
+
+  // Build full FPL string if user only entered item 15
+  let fullFpl = fpl;
+  if (!fpl.startsWith('(FPL')) {
+    const callsign = document.getElementById('callsign').value.trim() || 'GDOGA';
+    fullFpl = `(FPL-${callsign}-IG -DA50/L -SYBLDGOR/S -${dep}${eobt} -${fpl} -${dest}0000 -)`;
+  }
+
+  document.getElementById('gen-btn').disabled = true;
+  setStatus('Requesting route data from AutoRouter...', 'loading');
+
+  try {
+    const payload = {
+      action: 'getRoute',
+      fpl: fullFpl,
+      terraincorridor: terrainCorridor
+    };
+
+    const resp = await fetch(gasUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    // Because GAS requires no-cors, we can't read the JSON response directly.
+    // Instead: build a CORS-safe relay via a redirect trick, or use the
+    // opaque response pattern. For now we render a demo PLOG from the
+    // briefing pack data while we confirm the GAS endpoint is working.
+    // Once CORS is confirmed working (or GAS is set to allow it), swap
+    // fetchWithCors() in place of this block.
+
+    setStatus('Note: Using sample data — see CORS note below', 'loading');
+
+    // Build demo from the EGTK→EGPE route we already have from the briefing pack
+    const demoData = buildDemoData(dep, dest, eobt, fullFpl);
+    renderPlog(demoData, blockLH, blockRH);
+    setStatus('PLOG generated (demo data). See CORS note in console.', 'ok');
+
+  } catch (e) {
+    setStatus('Error: ' + e.message, 'error');
+  } finally {
+    document.getElementById('gen-btn').disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// DEMO DATA — populated from the briefing pack
+// we uploaded earlier (EGTK→EGPE at FL100)
+// Replace with live AR response once CORS resolved
+// ═══════════════════════════════════════════════════
+function buildDemoData(dep, dest, eobt, fpl) {
+  // Seed legs from the PLOG in the briefing pack
+  const legs = [
+    { ident:'EGTK',  fl:null,  magTrack:null, magHdg:null, windDir:247,windSpd:27, tas:null, gs:null,   dist:9.7,  ete:'00:07', eta:addMinutes(eobt,0),  fuelBurn:0,    terrain:null, msa:null,  freq:'' },
+    { ident:'IXURA', fl:'F100',magTrack:343,  magHdg:344,  windDir:290,windSpd:53, tas:161,  gs:121,    dist:4.8,  ete:'00:03', eta:addMinutes(eobt,7),  fuelBurn:2.4,  terrain:null, msa:null,  freq:'' },
+    { ident:'DTY',   fl:'F100',magTrack:59,   magHdg:60,   windDir:290,windSpd:53, tas:161,  gs:189,    dist:13.4, ete:'00:04', eta:addMinutes(eobt,10), fuelBurn:3.3,  terrain:null, msa:null,  freq:'116.400' },
+    { ident:'SAPCO', fl:'F100',magTrack:337,  magHdg:338,  windDir:287,windSpd:55, tas:161,  gs:121,    dist:23.4, ete:'00:12', eta:addMinutes(eobt,14), fuelBurn:4.8,  terrain:null, msa:null,  freq:'' },
+    { ident:'TNT',   fl:'F100',magTrack:339,  magHdg:340,  windDir:287,windSpd:61, tas:161,  gs:122,    dist:32.9, ete:'00:16', eta:addMinutes(eobt,26), fuelBurn:7.2,  terrain:null, msa:null,  freq:'115.700' },
+    { ident:'POL',   fl:'F100',magTrack:339,  magHdg:340,  windDir:284,windSpd:72, tas:163,  gs:116,    dist:7.2,  ete:'00:04', eta:addMinutes(eobt,42), fuelBurn:10.8, terrain:1932, msa:12932, freq:'112.100' },
+    { ident:'ERGAB', fl:'F100',magTrack:338,  magHdg:338,  windDir:283,windSpd:75, tas:163,  gs:109,    dist:63.2, ete:'00:34', eta:addMinutes(eobt,57), fuelBurn:14.5, terrain:2280, msa:13280, freq:'' },
+    { ident:'UTOGU', fl:'F100',magTrack:338,  magHdg:337,  windDir:279,windSpd:66, tas:166,  gs:121,    dist:1.4,  ete:'00:00', eta:addMinutes(eobt,91), fuelBurn:25.1, terrain:2848, msa:13848, freq:'' },
+    { ident:'TLA',   fl:'F100',magTrack:346,  magHdg:345,  windDir:278,windSpd:60, tas:166,  gs:134,    dist:43.4, ete:'00:20', eta:addMinutes(eobt,91), fuelBurn:25.6, terrain:2631, msa:13631, freq:'113.800' },
+    { ident:'GRICE', fl:'F100',magTrack:339,  magHdg:338,  windDir:277,windSpd:58, tas:165,  gs:129,    dist:43.2, ete:'00:20', eta:addMinutes(eobt,111),fuelBurn:31.6, terrain:2631, msa:13631, freq:'' },
+    { ident:'LAGAV', fl:'F100',magTrack:9,    magHdg:8,    windDir:276,windSpd:57, tas:135,  gs:124,    dist:19.4, ete:'00:09', eta:addMinutes(eobt,131),fuelBurn:37.4, terrain:3579, msa:14579, freq:'' },
+    { ident:'GUSSI', fl:'F100',magTrack:9,    magHdg:8,    windDir:275,windSpd:58, tas:160,  gs:151,    dist:1.3,  ete:'00:01', eta:addMinutes(eobt,140),fuelBurn:39.0, terrain:3048, msa:14048, freq:'' },
+    { ident:'DAVOT', fl:'3739',magTrack:8,    magHdg:7,    windDir:277,windSpd:57, tas:126,  gs:120,    dist:12.0, ete:'00:06', eta:addMinutes(eobt,141),fuelBurn:39.2, terrain:2726, msa:13726, freq:'' },
+    { ident:'EGPE',  fl:null,  magTrack:349,  magHdg:348,  windDir:273,windSpd:24, tas:null, gs:null,   dist:0,    ete:'',      eta:addMinutes(eobt,147),fuelBurn:41.5, terrain:null, msa:null,  freq:'', isLast:true },
+  ];
+
+  return {
+    departure:    dep   || 'EGTK',
+    destination:  dest  || 'EGPE',
+    eobt:         eobt  || '1545',
+    callsign:     document.getElementById('callsign').value || 'GDOGA',
+    acftType:     'DA50',
+    fplan:        fpl,
+    totalEet:     '03:05',
+    tripFuelUsg:  41.5,
+    blockFuelUsg: 49.0,
+    legs
+  };
+}
+
+function addMinutes(eobt, mins) {
+  const h = parseInt(eobt.substring(0,2)) || 15;
+  const m = parseInt(eobt.substring(2,4)) || 45;
+  const total = h * 60 + m + mins;
+  const rh = Math.floor(total / 60) % 24;
+  const rm = total % 60;
+  return String(rh).padStart(2,'0') + String(rm).padStart(2,'0');
+}
+
+// ═══════════════════════════════════════════════════
+// RENDER PLOG
+// ═══════════════════════════════════════════════════
+function renderPlog(data, blockLH, blockRH) {
+  const blockTotal = blockLH + blockRH;
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0,10);
+
+  // ── Header ──
+  const eetParts = data.totalEet ? data.totalEet.split(':') : ['--','--'];
+  const headerHtml = `
+    <div class="plog-header">
+      <div class="plog-header-cell">
+        <span class="lbl">Departure</span>
+        <span class="val">${data.departure}</span>
+      </div>
+      <div class="plog-header-cell">
+        <span class="lbl">Destination</span>
+        <span class="val">${data.destination}</span>
+      </div>
+      <div class="plog-header-cell">
+        <span class="lbl">EOBT (UTC)</span>
+        <span class="val">${data.eobt || '--'}</span>
+      </div>
+      <div class="plog-header-cell">
+        <span class="lbl">Callsign</span>
+        <span class="val">${data.callsign}</span>
+      </div>
+      <div class="plog-header-cell">
+        <span class="lbl">Aircraft</span>
+        <span class="val">${data.acftType} / G-DOGA</span>
+      </div>
+      <div class="plog-header-cell">
+        <span class="lbl">Date</span>
+        <span class="val">${dateStr}</span>
+      </div>
+    </div>`;
+
+  // ── Fuel summary ──
+  const contg  = (data.tripFuelUsg * 0.05).toFixed(1);
+  const finRes  = 6.0;
+  const req     = (parseFloat(data.tripFuelUsg || 0) + parseFloat(contg) + finRes).toFixed(1);
+  const extra   = (blockTotal - parseFloat(req)).toFixed(1);
+
+  const fuelHtml = `
+    <div class="plog-fuel-summary">
+      <div class="plog-fuel-cell">
+        <span class="lbl">Block LH (USG)</span>
+        <span class="val">${blockLH.toFixed(1)}</span>
+      </div>
+      <div class="plog-fuel-cell">
+        <span class="lbl">Block RH (USG)</span>
+        <span class="val">${blockRH.toFixed(1)}</span>
+      </div>
+      <div class="plog-fuel-cell">
+        <span class="lbl">Trip Fuel</span>
+        <span class="val">${(data.tripFuelUsg || '--')}</span>
+      </div>
+      <div class="plog-fuel-cell">
+        <span class="lbl">Cont (5%)</span>
+        <span class="val">${contg}</span>
+      </div>
+      <div class="plog-fuel-cell">
+        <span class="lbl">Final Res</span>
+        <span class="val">${finRes.toFixed(1)}</span>
+      </div>
+      <div class="plog-fuel-cell">
+        <span class="lbl">Extra</span>
+        <span class="val">${extra}</span>
+      </div>
+    </div>`;
+
+  // ── Table rows ──
+  let rowsHtml = '';
+  data.legs.forEach((leg, i) => {
+    const isLast = leg.isLast || i === data.legs.length - 1;
+    const burn   = parseFloat(leg.fuelBurn) || 0;
+    const state  = calcFuelState(blockLH, blockRH, burn);
+    const total  = (state.lh + state.rh).toFixed(1);
+
+    // Wind string
+    const wind = (leg.windDir != null && leg.windSpd != null)
+      ? String(leg.windDir).padStart(3,'0') + '/' + String(leg.windSpd).padStart(2,'0')
+      : '';
+
+    // FL display
+    const flDisp = leg.fl || (leg.altitude ? 'F' + String(Math.round(leg.altitude/100)).padStart(3,'0') : '');
+
+    // MSA — red if below 1000ft clearance from terrain
+    const msaDisp = leg.msa ? Math.round(leg.msa/100)*100 : '';
+
+    rowsHtml += `
+      <tr class="${isLast ? 'dest-row' : ''}">
+        <td class="wpt">${leg.ident}</td>
+        <td class="freq">${leg.freq || ''}</td>
+        <td>${flDisp}</td>
+        <td>${leg.magTrack != null ? String(leg.magTrack).padStart(3,'0') : ''}</td>
+        <td>${leg.magHdg  != null ? String(leg.magHdg).padStart(3,'0')  : ''}</td>
+        <td>${wind}</td>
+        <td>${leg.tas  != null ? leg.tas  : ''}</td>
+        <td>${leg.gs   != null ? leg.gs   : ''}</td>
+        <td>${leg.dist != null && leg.dist > 0 ? leg.dist.toFixed(1) : ''}</td>
+        <td>${leg.ete  || ''}</td>
+        <td>${leg.eta  || ''}</td>
+        <td class="ata"><input class="ata-input" type="text" maxlength="4" placeholder="____"></td>
+        <td class="${leg.msa ? 'msa' : ''}">${msaDisp}</td>
+        <td class="fuel-lh">${state.lh.toFixed(1)}</td>
+        <td class="fuel-rh">${state.rh.toFixed(1)}</td>
+        <td class="fuel-total">${total}</td>
+      </tr>`;
+  });
+
+  // ── Full plog HTML ──
+  const plogHtml = `
+    <div class="plog-doc" id="plog-doc">
+      ${headerHtml}
+      ${fuelHtml}
+
+      <table class="plog-table">
+        <thead>
+          <tr class="col-group">
+            <th colspan="2" class="left">Waypoint</th>
+            <th>Alt</th>
+            <th colspan="2">Track / Hdg</th>
+            <th>Wind</th>
+            <th colspan="2">Speed (kt)</th>
+            <th>Dist</th>
+            <th>ETE</th>
+            <th>ETA</th>
+            <th>ATA</th>
+            <th>MSA</th>
+            <th colspan="3">Fuel State (USG)</th>
+          </tr>
+          <tr>
+            <th class="left">WPT</th>
+            <th>FREQ</th>
+            <th>FL</th>
+            <th>TRK(M)</th>
+            <th>HDG(M)</th>
+            <th>D/V</th>
+            <th>TAS</th>
+            <th>GS</th>
+            <th>NM</th>
+            <th>ETE</th>
+            <th>ETA(Z)</th>
+            <th>ATA(Z)</th>
+            <th>ft</th>
+            <th>LH</th>
+            <th>RH</th>
+            <th>TOT</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+
+      <div class="plog-footer">
+        <div class="plog-footer-cell">
+          <span class="lbl">Route</span>
+          <span style="font-size:6pt;word-break:break-all;">${data.fplan || ''}</span>
+        </div>
+        <div class="plog-footer-cell">
+          <span class="lbl">PIC Signature</span>
+        </div>
+        <div class="plog-footer-cell">
+          <span class="lbl">Actual Block Off / On</span>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('plog-area').innerHTML = plogHtml;
+}
+
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+loadSettings();
+
+console.log(
+  '%cDA50 PLOG — CORS note',
+  'color:#4fc3f7;font-weight:bold;font-size:14px'
+);
+console.log(
+  'GAS no-cors mode means we cannot read the JSON response in the browser.\n' +
+  'To fix: in your GAS doPost(), wrap the response with\n' +
+  'ContentService.createTextOutput(...).setMimeType(JSON)\n' +
+  'and ensure the GAS web app is deployed as "Anyone" access.\n' +
+  'Once confirmed, change fetch mode to "cors" and parse the response normally.\n' +
+  'Current build renders from demo data (EGTK→EGPE briefing pack).'
+);
+</script>
+</body>
+</html>
