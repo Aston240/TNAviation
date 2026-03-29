@@ -31,6 +31,7 @@ body {
   min-height: 100vh;
 }
 
+/* ── SCREEN CHROME ── */
 .app-header {
   display: flex;
   align-items: center;
@@ -166,24 +167,24 @@ body {
   font-family: 'IBM Plex Mono', monospace;
   max-width: 297mm;
   margin: 0 auto;
-  padding: 7mm 9mm;
+  padding: 6mm 8mm;
   border-radius: 4px;
   box-shadow: 0 4px 40px rgba(0,0,0,0.5);
 }
 
-/* Header */
+/* Header row */
 .plog-header {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   border: 1.5px solid #000;
 }
 .plog-hcell {
-  padding: 3px 6px;
+  padding: 2px 5px;
   border-right: 1px solid #000;
 }
 .plog-hcell:last-child { border-right: none; }
 .plog-hcell .lbl {
-  font-size: 5.5pt;
+  font-size: 5pt;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #777;
@@ -191,7 +192,7 @@ body {
   line-height: 1.3;
 }
 .plog-hcell .val {
-  font-size: 9pt;
+  font-size: 8.5pt;
   font-weight: 600;
   display: block;
   line-height: 1.5;
@@ -203,16 +204,16 @@ body {
   grid-template-columns: repeat(5, 1fr);
   border: 1.5px solid #000;
   border-top: 1px solid #000;
-  margin-bottom: 5px;
+  margin-bottom: 4px;
 }
 .plog-tcell {
-  padding: 3px 6px;
+  padding: 2px 5px;
   border-right: 1px solid #000;
-  min-height: 26px;
+  min-height: 23px;
 }
 .plog-tcell:last-child { border-right: none; }
 .plog-tcell .lbl {
-  font-size: 5.5pt;
+  font-size: 5pt;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #999;
@@ -221,18 +222,44 @@ body {
 }
 .plog-tcell .line {
   display: block;
-  height: 13px;
+  height: 11px;
   border-bottom: 1px solid #ccc;
-  width: 85%;
+  width: 90%;
 }
 
-/* Table */
+/* ── MAIN TABLE ── */
 .plog-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 7.5pt;
+  font-size: 7pt;
   font-family: 'IBM Plex Mono', monospace;
+  table-layout: fixed;
 }
+
+/*
+  Column widths. The nav data columns are kept tight.
+  The NOTES column is wide — takes up the space freed by
+  compressing everything else.
+
+  Total A4 landscape printable ≈ 277mm content width.
+  Nav cols ≈ 195mm, notes ≈ 55mm, leaving ~27mm for borders.
+*/
+.plog-table col.c-wpt  { width: 42px; }   /* waypoint ident */
+.plog-table col.c-freq { width: 36px; }   /* navaid freq */
+.plog-table col.c-fl   { width: 24px; }   /* flight level */
+.plog-table col.c-trk  { width: 28px; }   /* trk/hdg stacked */
+.plog-table col.c-wind { width: 30px; }   /* wind */
+.plog-table col.c-spd  { width: 24px; }   /* tas/gs stacked */
+.plog-table col.c-dist { width: 22px; }   /* dist nm */
+.plog-table col.c-ete  { width: 24px; }   /* ete */
+.plog-table col.c-ata  { width: 26px; }   /* ata */
+.plog-table col.c-msa  { width: 24px; }   /* msa */
+.plog-table col.c-fp   { width: 24px; }   /* fuel planned */
+.plog-table col.c-fa   { width: 22px; }   /* fuel actual (blank) */
+.plog-table col.c-fd   { width: 22px; }   /* fuel +/- (blank) */
+.plog-table col.c-notes { width: auto; }  /* ATC notes — fills remainder */
+
+/* Thead */
 .plog-table thead tr {
   background: #1a1a2e;
   color: #fff;
@@ -240,94 +267,144 @@ body {
   print-color-adjust: exact;
 }
 .plog-table thead th {
-  padding: 3px 5px;
+  padding: 2px 3px;
   text-align: center;
-  font-size: 6.5pt;
+  font-size: 5.5pt;
   font-weight: 600;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   border: 1px solid #000;
-  line-height: 1.3;
+  line-height: 1.25;
+  overflow: hidden;
 }
 .plog-table thead th.left { text-align: left; }
 
-.plog-table tbody tr { border-bottom: 1px solid #ddd; }
+/* Group header row */
+.plog-table thead tr.grp {
+  background: #2d3561;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.plog-table thead tr.grp th {
+  font-size: 5pt;
+  padding: 1px 3px;
+  letter-spacing: 0.06em;
+}
+
+/* Body */
+.plog-table tbody tr { border-bottom: 1px solid #e0e0e0; }
 .plog-table tbody tr:nth-child(even) { background: #f8f9fb; }
 .plog-table tbody tr.dest-row {
-  background: #e8f4fd;
+  background: #dbeafe;
   font-weight: 600;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
+
 .plog-table tbody td {
-  padding: 2px 4px;
+  padding: 2px 3px;
   border: 1px solid #ddd;
   text-align: center;
   vertical-align: middle;
   white-space: nowrap;
+  overflow: hidden;
+  font-size: 7pt;
 }
 .plog-table tbody td.wpt {
   font-weight: 700;
-  font-size: 8pt;
+  font-size: 7.5pt;
   text-align: left;
-  min-width: 46px;
 }
-.plog-table tbody td.freq { font-size: 6.5pt; color: #555; }
+.plog-table tbody td.freq { font-size: 6pt; color: #555; }
 
-/* Stacked cells — TRK/HDG and TAS/GS */
-td.stacked, th.stacked-h { padding: 1px 5px !important; }
+/* Stacked cells — TRK/HDG, TAS/GS */
+td.stacked, th.stacked-h { padding: 1px 3px !important; }
 .stacked .top, .stacked-h .top {
   display: block;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid #ddd;
   padding-bottom: 1px;
   margin-bottom: 1px;
-  line-height: 1.35;
+  line-height: 1.3;
 }
-.stacked-h .top { border-color: rgba(255,255,255,0.25); }
-.stacked .bot, .stacked-h .bot { display: block; line-height: 1.35; }
-.stacked .bot  { color: #444; }
+.stacked-h .top { border-color: rgba(255,255,255,0.2); }
+.stacked .bot, .stacked-h .bot { display: block; line-height: 1.3; }
+.stacked .bot   { color: #555; }
 .stacked-h .bot { opacity: 0.75; }
 
-/* Fuel remaining */
-.plog-table tbody td.fuel {
+/* Fuel: planned */
+.plog-table tbody td.fuel-p {
   background: #fffbeb;
   font-weight: 700;
   color: #78350f;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
+/* Fuel: actual — blank for pilot to write */
+.plog-table tbody td.fuel-a {
+  background: #f0fdf4;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+/* Fuel: diff — blank for pilot to write +/- */
+.plog-table tbody td.fuel-d {
+  background: #fff7ed;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
 /* MSA */
-.plog-table tbody td.msa-val { color: #c00; font-weight: 600; }
+.plog-table tbody td.msa-val { color: #b91c1c; font-weight: 600; }
 
 /* ATA */
-.plog-table tbody td.ata-cell { background: #f0fdf4; }
+.plog-table tbody td.ata-cell { background: #f5f5f5; }
 .ata-input {
-  width: 36px;
+  width: 24px;
   border: none;
-  border-bottom: 1px solid #aaa;
+  border-bottom: 1px solid #999;
   background: transparent;
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 7.5pt;
+  font-size: 7pt;
   text-align: center;
   outline: none;
   padding: 0;
 }
 
+/* Notes cell — wide, blank, with a ruled underline at bottom of cell */
+.plog-table tbody td.notes-cell {
+  background: #fff;
+  border-left: 2px solid #aaa;   /* visual separator from data cols */
+  text-align: left;
+  /* faint ruled line at bottom of each cell so the pilot can write on it */
+  background-image: linear-gradient(to bottom, transparent calc(100% - 1px), #ddd calc(100% - 1px));
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  min-width: 0;
+}
+/* Notes header */
+.plog-table thead th.notes-hdr {
+  background: #2d3561;
+  border-left: 2px solid #aaa;
+  text-align: left;
+  padding-left: 5px;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
 /* Footer */
 .plog-footer {
-  margin-top: 5px;
+  margin-top: 4px;
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr;
   border: 1px solid #bbb;
 }
 .plog-footer-cell {
-  padding: 3px 6px;
+  padding: 2px 5px;
   border-right: 1px solid #bbb;
-  min-height: 22px;
+  min-height: 18px;
 }
 .plog-footer-cell:last-child { border-right: none; }
 .plog-footer-cell .lbl {
-  font-size: 5.5pt;
+  font-size: 5pt;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #aaa;
@@ -338,13 +415,17 @@ td.stacked, th.stacked-h { padding: 1px 5px !important; }
    PRINT — A4 landscape
 ══════════════════════════════════════ */
 @media print {
-  @page { size: A4 landscape; margin: 7mm 9mm; }
+  @page { size: A4 landscape; margin: 6mm 8mm; }
   body  { background: #fff !important; }
   .app-header, .controls, .settings-panel,
   .fuel-row, .status, .no-print { display: none !important; }
   #plog-area { padding: 0 !important; }
-  .plog-doc  { box-shadow: none !important; border-radius: 0 !important;
-               padding: 0 !important; max-width: 100% !important; }
+  .plog-doc  {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
 }
 </style>
 </head>
@@ -493,10 +574,8 @@ async function generate() {
   }
 }
 
-// Demo data — EGTK→EGPE from the uploaded briefing pack.
-// burn = cumulative USG to reach this waypoint.
-// msa  = realistic values from AR terrain corridor (ft MSL), NOT the inflated
-//        figures the old version had. These are terrain + 1000/2000ft buffer.
+// Demo data — EGTK→EGPE from uploaded briefing pack.
+// msa = realistic AR terrain corridor values (ft MSL).
 function buildDemoData(dep, dest, eobt, fpl, callsign) {
   const legs = [
     { ident:'EGTK',  fl:'',     mt:null,mh:null,wd:247,ws:27, tas:null,gs:null, dist:9.7,  ete:'00:07', burn:0,    msa:null, freq:'' },
@@ -568,25 +647,62 @@ function renderPlog(data, blockFuel) {
       <td>${leg.ete || ''}</td>
       <td class="ata-cell"><input class="ata-input" type="text" maxlength="4" placeholder="____"></td>
       <td class="${leg.msa ? 'msa-val' : ''}">${msaDisp}</td>
-      <td class="fuel">${fuelRem}</td>
+      <td class="fuel-p">${fuelRem}</td>
+      <td class="fuel-a">&nbsp;</td>
+      <td class="fuel-d">&nbsp;</td>
+      <td class="notes-cell">&nbsp;</td>
     </tr>`;
   });
 
   const table = `
   <table class="plog-table">
+    <colgroup>
+      <col class="c-wpt">
+      <col class="c-freq">
+      <col class="c-fl">
+      <col class="c-trk">
+      <col class="c-wind">
+      <col class="c-spd">
+      <col class="c-dist">
+      <col class="c-ete">
+      <col class="c-ata">
+      <col class="c-msa">
+      <col class="c-fp">
+      <col class="c-fa">
+      <col class="c-fd">
+      <col class="c-notes">
+    </colgroup>
     <thead>
+      <!-- Group header row -->
+      <tr class="grp">
+        <th colspan="2" class="left">Waypoint</th>
+        <th>Alt</th>
+        <th>Nav</th>
+        <th>Met</th>
+        <th>Spd</th>
+        <th>Leg</th>
+        <th>Time</th>
+        <th>&nbsp;</th>
+        <th>Clear</th>
+        <th colspan="3">Fuel (USG)</th>
+        <th class="notes-hdr">ATC / Clearance Notes</th>
+      </tr>
+      <!-- Column header row -->
       <tr>
         <th class="left">WPT</th>
         <th>FREQ</th>
         <th>FL</th>
-        <th class="stacked-h"><span class="top">TRK(M)</span><span class="bot">HDG(M)</span></th>
-        <th>WIND<br><span style="font-size:5pt;opacity:.7">D / V</span></th>
+        <th class="stacked-h"><span class="top">TRK°M</span><span class="bot">HDG°M</span></th>
+        <th>WIND<br><span style="font-size:4.5pt;opacity:.7">D/V</span></th>
         <th class="stacked-h"><span class="top">TAS</span><span class="bot">GS</span></th>
-        <th>DIST<br><span style="font-size:5pt;opacity:.7">nm</span></th>
+        <th>NM</th>
         <th>ETE</th>
-        <th>ATA<br><span style="font-size:5pt;opacity:.7">UTC</span></th>
-        <th>MSA<br><span style="font-size:5pt;opacity:.7">ft</span></th>
-        <th>FUEL<br><span style="font-size:5pt;opacity:.7">USG rem</span></th>
+        <th>ATA<br><span style="font-size:4.5pt;opacity:.7">UTC</span></th>
+        <th>MSA<br><span style="font-size:4.5pt;opacity:.7">ft</span></th>
+        <th>PLAN</th>
+        <th>ACT</th>
+        <th>+/−</th>
+        <th class="notes-hdr left" style="font-size:5pt;letter-spacing:0.06em;">FREQ · LEVEL · ATC INSTRUCTIONS</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -596,10 +712,9 @@ function renderPlog(data, blockFuel) {
   <div class="plog-footer">
     <div class="plog-footer-cell">
       <span class="lbl">Route</span>
-      <span style="font-size:5.5pt;word-break:break-all;line-height:1.4;">${data.fplan || ''}</span>
+      <span style="font-size:5pt;word-break:break-all;line-height:1.4;">${data.fplan || ''}</span>
     </div>
     <div class="plog-footer-cell"><span class="lbl">PIC Signature</span></div>
-    <div class="plog-footer-cell"><span class="lbl">Notes</span></div>
   </div>`;
 
   document.getElementById('plog-area').innerHTML =
