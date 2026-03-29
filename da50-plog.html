@@ -437,6 +437,29 @@ td.stacked, th.stacked-h { padding: 1px 4px !important; }
 /* ══════════════════════════════════════
    PRINT — A4 landscape
 ══════════════════════════════════════ */
+
+/* thead repeats on every printed page */
+.plog-table thead { display: table-header-group; }
+.plog-table tbody { display: table-row-group; }
+
+/* Keep individual rows intact; allow tbody to span pages */
+.plog-table tbody tr {
+  page-break-inside: avoid;
+  break-inside:      avoid;
+}
+
+/* Don't break the header/times block */
+.plog-header, .plog-times {
+  page-break-inside: avoid;
+  break-inside:      avoid;
+}
+
+/* Footer stays together */
+.plog-footer {
+  page-break-inside: avoid;
+  break-inside:      avoid;
+}
+
 @media print {
   @page { size: A4 landscape; margin: 6mm 8mm; }
   body  { background: #fff !important; }
@@ -444,10 +467,18 @@ td.stacked, th.stacked-h { padding: 1px 4px !important; }
   .fuel-row, .status, .no-print { display: none !important; }
   #plog-area { padding: 0 !important; }
   .plog-doc  {
-    box-shadow: none !important;
+    box-shadow:    none !important;
     border-radius: 0 !important;
-    padding: 0 !important;
-    max-width: 100% !important;
+    padding:       0 !important;
+    max-width:     100% !important;
+    overflow:      visible !important;
+    height:        auto !important;
+    max-height:    none !important;
+  }
+  .plog-table {
+    overflow:          visible !important;
+    page-break-inside: auto;
+    break-inside:      auto;
   }
 }
 </style>
@@ -554,11 +585,15 @@ async function testConnection() {
   if (!url) { setStatus('No GAS URL configured', 'error'); return; }
   setStatus('Testing...', 'loading');
   try {
-    await fetch(url, { method:'POST', mode:'no-cors',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ action:'ping' }) });
-    setStatus('GAS endpoint reachable', 'ok');
-  } catch(e) { setStatus('Failed: ' + e.message, 'error'); }
+    const resp = await fetch(url + '?action=ping', { method: 'GET' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    if (data.ok) {
+      setStatus('Connected — AutoRouter credentials will be checked on first route request', 'ok');
+    } else {
+      setStatus('GAS reachable but returned unexpected response', 'error');
+    }
+  } catch(e) { setStatus('Connection failed: ' + e.message, 'error'); }
 }
 
 async function generate() {
@@ -581,15 +616,33 @@ async function generate() {
   }
 
   document.getElementById('gen-btn').disabled = true;
-  setStatus('Requesting route from AutoRouter...', 'loading');
+  setStatus('Fetching route from AutoRouter...', 'loading');
 
   try {
-    await fetch(gasUrl, { method:'POST', mode:'no-cors',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ action:'getRoute', fpl:fullFpl, terraincorridor:corridor }) });
-    const demo = buildDemoData(dep, dest, eobt, fullFpl, callsign);
-    renderPlog(demo, blockFuel);
-    setStatus('PLOG rendered (demo data — live AR data once CORS resolved)', 'ok');
+    // GET request — GAS serves JSON cross-origin on GET
+    const url = gasUrl
+      + '?action=getRoute'
+      + '&fpl=' + encodeURIComponent(fullFpl)
+      + '&terraincorridor=' + corridor;
+
+    const resp = await fetch(url, { method: 'GET' });
+
+    if (!resp.ok) {
+      throw new Error('GAS returned HTTP ' + resp.status);
+    }
+
+    const data = await resp.json();
+
+    if (data.error) {
+      setStatus('AutoRouter error: ' + data.error, 'error');
+      return;
+    }
+
+    // Live data — pass block fuel from UI (AR may return its own blockFuel
+    // but we use what the pilot has entered as it reflects actual uplift)
+    renderPlog(data, blockFuel);
+    setStatus('PLOG generated', 'ok');
+
   } catch(e) {
     setStatus('Error: ' + e.message, 'error');
   } finally {
